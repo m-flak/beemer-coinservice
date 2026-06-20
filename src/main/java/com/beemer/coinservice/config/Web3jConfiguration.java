@@ -12,20 +12,17 @@ import java.util.stream.Collectors;
 @Configuration
 public class Web3jConfiguration {
 
-    @Bean
-    public Credentials web3jCredentials(CredentialsProperties props) {
-        if (props.getPrivateKey() == null || props.getPrivateKey().isBlank()) {
-            throw new IllegalStateException("beemer:credentials:privateKey is not configured");
-        }
-        return Credentials.create(props.getPrivateKey());
-    }
+	@Bean
+	public Credentials web3jCredentials(CredentialsProperties props) {
+		if (props.getPrivateKey() == null || props.getPrivateKey().isBlank()) {
+			throw new IllegalStateException("beemer:credentials:privateKey is not configured");
+		}
+		return Credentials.create(props.getPrivateKey());
+	}
 
-    @Bean
-    public Map<Long, Web3j> web3jInstances(BlockchainProperties blockchainProperties) {
-        return blockchainProperties.getChains().stream()
-                .collect(Collectors.toMap(
-                        BlockchainProperties.Chain::getChainId,
-                        chain -> Web3j.build(new HttpService(chain.getRpcUrl()))
-                ));
-    }
+	@Bean
+	public Map<Long, Web3j> web3jInstances(BlockchainProperties blockchainProperties) {
+		return blockchainProperties.getChains().stream().collect(Collectors.toMap(
+				BlockchainProperties.Chain::getChainId, chain -> Web3j.build(new HttpService(chain.getRpcUrl()))));
+	}
 }

@@ -1,3 +1,24 @@
+logging:
+  structured:
+    format:
+      console: json
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, loggers
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+  info:
+    env:
+      enabled: true
+    build:
+      enabled: true
+
 spring:
   application:
     name: coinservice

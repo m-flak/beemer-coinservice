@@ -14,7 +14,18 @@ beemer:
       - name: bepolia
         chain-id: 80069
         rpc-url: "https://rpc.bepolia.berachain.com"
-        contracts: {}
+        contracts:
+          Beemer:
+            address: "0x0000000000000000000000000000000000000001"
+            created-block: 0
+          FeeVault:
+            address: "0x0000000000000000000000000000000000000002"
+            created-block: 0
+  epoch:
+    cron: "-"
+    reward-tokens:
+      - chain-id: 80069
+        reward-token: "0x0000000000000000000000000000000000000003"
   pinata:
     base-url: "https://api.pinata.cloud"
     jwt: "test-jwt"

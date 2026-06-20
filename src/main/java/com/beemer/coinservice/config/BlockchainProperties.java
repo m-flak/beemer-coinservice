@@ -14,19 +14,19 @@ import java.util.Map;
 @ConfigurationProperties(prefix = "beemer.blockchains")
 public class BlockchainProperties {
 
-    private List<Chain> chains = new ArrayList<>();
+	private List<Chain> chains = new ArrayList<>();
 
-    @Data
-    public static class Chain {
-        private String name;
-        private long chainId;
-        private String rpcUrl;
-        private Map<String, Contract> contracts;
+	@Data
+	public static class Chain {
+		private String name;
+		private long chainId;
+		private String rpcUrl;
+		private Map<String, Contract> contracts;
 
-        @Data
-        public static class Contract {
-            private String address;
-            private BigInteger createdBlock;
-        }
-    }
+		@Data
+		public static class Contract {
+			private String address;
+			private BigInteger createdBlock;
+		}
+	}
 }

@@ -3,6 +3,14 @@ plugins {
 	id 'org.springframework.boot' version '4.0.6'
 	id 'io.spring.dependency-management' version '1.1.7'
 	id 'com.beemer.w3j-codegen'
+	id 'com.diffplug.spotless' version '7.0.3'
+}
+
+spotless {
+	java {
+		target 'src/**/*.java'
+		eclipse()
+	}
 }
 
 group = 'com.beemer'
@@ -29,6 +37,7 @@ dependencyManagement {
 }
 
 dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'com.azure.spring:spring-cloud-azure-starter-appconfiguration-config'
@@ -45,6 +54,10 @@ dependencies {
 w3jCodegen {
 	artifactsDir = file('../yeet/artifacts/contracts')
 	packageName = 'com.beemer.coinservice.contracts'
+}
+
+springBoot {
+	buildInfo()
 }
 
 tasks.named('test') {

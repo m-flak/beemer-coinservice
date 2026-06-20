@@ -8,6 +8,6 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "beemer.pinata")
 public class PinataProperties {
-    private String baseUrl;
-    private String jwt;
+	private String baseUrl;
+	private String jwt;
 }

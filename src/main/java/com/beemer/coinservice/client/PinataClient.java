@@ -11,24 +11,20 @@ import java.util.Map;
 @HttpExchange
 public interface PinataClient {
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    record PinRequest<T>(
-            T pinataContent,
-            PinOptions pinataOptions,
-            PinMetadata pinataMetadata
-    ) {}
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	record PinRequest<T>(T pinataContent, PinOptions pinataOptions, PinMetadata pinataMetadata) {
+	}
 
-    record PinOptions(String groupId, int cidVersion) {}
+	record PinOptions(String groupId, int cidVersion) {
+	}
 
-    record PinMetadata(String name, Map<String, String> keyvalues) {}
+	record PinMetadata(String name, Map<String, String> keyvalues) {
+	}
 
-    record PinResponse(
-            @JsonProperty("IpfsHash") String ipfsHash,
-            @JsonProperty("PinSize") int pinSize,
-            @JsonProperty("Timestamp") String timestamp,
-            boolean isDuplicate
-    ) {}
+	record PinResponse(@JsonProperty("IpfsHash") String ipfsHash, @JsonProperty("PinSize") int pinSize,
+			@JsonProperty("Timestamp") String timestamp, boolean isDuplicate) {
+	}
 
-    @PostExchange("/pinning/pinJSONToIPFS")
-    <T> PinResponse pinJSON(@RequestBody PinRequest<T> request);
+	@PostExchange("/pinning/pinJSONToIPFS")
+	<T> PinResponse pinJSON(@RequestBody PinRequest<T> request);
 }

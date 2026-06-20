@@ -11,12 +11,11 @@ import org.springframework.web.service.registry.ImportHttpServices;
 @ImportHttpServices(group = "pinata", types = PinataClient.class)
 public class PinataConfiguration {
 
-    @Bean
-    RestClientHttpServiceGroupConfigurer pinataGroupConfigurer(PinataProperties props) {
-        return groups -> groups.filterByName("pinata").forEachClient((group, clientBuilder) -> {
-            clientBuilder
-                    .baseUrl(props.getBaseUrl())
-                    .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + props.getJwt());
-        });
-    }
+	@Bean
+	RestClientHttpServiceGroupConfigurer pinataGroupConfigurer(PinataProperties props) {
+		return groups -> groups.filterByName("pinata").forEachClient((group, clientBuilder) -> {
+			clientBuilder.baseUrl(props.getBaseUrl()).defaultHeader(HttpHeaders.AUTHORIZATION,
+					"Bearer " + props.getJwt());
+		});
+	}
 }

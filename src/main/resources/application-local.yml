@@ -1,0 +1,18 @@
+logging:
+  structured:
+    format:
+      console:
+
+server:
+  port: 8443
+  ssl:
+    bundle: local
+
+spring:
+  ssl:
+    bundle:
+      pem:
+        local:
+          keystore:
+            certificate: file:local-ssl/localhost.pem
+            private-key: file:local-ssl/localhost-key.pem

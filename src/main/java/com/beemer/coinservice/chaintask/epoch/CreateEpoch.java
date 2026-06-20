@@ -1,114 +1,181 @@
 package com.beemer.coinservice.chaintask.epoch;
 
-import java.io.IOException;
+import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import io.reactivex.Flowable;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
-import org.web3j.crypto.Credentials;
+import org.web3j.abi.datatypes.Address;
+import org.web3j.abi.datatypes.generated.Uint256;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameter;
-import org.web3j.tx.gas.DefaultGasProvider;
 
-import com.beemer.coinservice.chaintask.ChainTask;
+import com.beemer.coinservice.chaintask.AbstractChainTask;
+import com.beemer.coinservice.chaintask.ContractLoader;
+import com.beemer.coinservice.chaintask.exception.ChainTaskFailureException;
 import com.beemer.coinservice.client.PinataClient;
 import com.beemer.coinservice.config.BlockchainProperties;
 import com.beemer.coinservice.contracts.Beemer;
+import com.beemer.coinservice.contracts.FeeVault;
 import com.beemer.coinservice.utils.StandardMerkleTree;
 
+import jakarta.annotation.Nonnull;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
 @Scope(ConfigurableBeanFactory.SCOPE_PROTOTYPE)
-public class CreateEpoch implements ChainTask {
-    private static final String BEEMER = "Beemer";
+public class CreateEpoch extends AbstractChainTask {
+	private static final String BEEMER = "Beemer";
 
-    private BlockchainProperties.Chain chainData = null;
+	private final Map<Long, Web3j> web3jInstances;
+	private final ContractLoader contractLoader;
+	private final PinataClient pinata;
 
-    @Autowired
-    private BlockchainProperties blockchainProperties;
+	@Autowired
+	public CreateEpoch(BlockchainProperties blockchainProperties, Map<Long, Web3j> web3jInstances,
+			ContractLoader contractLoader, PinataClient pinata) {
+		super(blockchainProperties);
+		this.web3jInstances = web3jInstances;
+		this.contractLoader = contractLoader;
+		this.pinata = pinata;
+	}
 
-    @Autowired
-    private Map<Long, Web3j> web3jInstances;
+	@Override
+	public void execute(Long forChain, @Nonnull Object parameters) {
+		var web3 = web3jInstances.get(forChain);
+		var beemer = contractLoader.loadBeemer(getChainData(forChain).getContracts().get(BEEMER).getAddress(), web3);
 
-    @Autowired
-    private Credentials web3jCredentials;
+		String stage = "Get Block Number";
+		log.trace(stage);
+		try {
+			var snapshotBlock = web3.ethBlockNumber().send().getBlockNumber();
 
-    @Autowired
-    private PinataClient pinata;
+			stage = "Find Unique Lockers";
+			log.trace(stage);
+			var uniqueLockers = findUniqueLockers(beemer,
+					getChainData(forChain).getContracts().get(BEEMER).getCreatedBlock(), snapshotBlock);
 
-    @Override
-    public void execute(Long forChain) {
-        var web3 = web3jInstances.get(forChain);
-        
-        var beemer = Beemer.load(
-            getChainData(forChain).getContracts().get(BEEMER).getAddress(),
-            web3jInstances.get(forChain),
-            web3jCredentials,
-            new DefaultGasProvider()
-        );
+			stage = "Determine Locked Balances";
+			log.trace(stage);
+			beemer.setDefaultBlockParameter(DefaultBlockParameter.valueOf(snapshotBlock));
+			var addressLockeds = determineLockedBalances(beemer, uniqueLockers);
 
-        try {
-            String stage = "Get Block Number";
-            var snapshotBlock = web3.ethBlockNumber().send().getBlockNumber();
+			BigInteger totalLocked = addressLockeds.stream().map(AddressLocked::locked).reduce(BigInteger.ZERO,
+					BigInteger::add);
 
-            stage = "Find Unique Lockers";
-            var uniqueLockers = 
-                beemer.lockedEventFlowable(
-                    DefaultBlockParameter.valueOf(
-                        getChainData(forChain).getContracts().get(BEEMER).getCreatedBlock()), 
-                    DefaultBlockParameter.valueOf(snapshotBlock)
-                ).map(m -> m._of)
-                .collect(HashSet<String>::new, Set::add)
-                .blockingGet();
+			if (totalLocked.signum() == 0) {
+				log.info("Epoch not created. Nothing locked.");
+				return;
+			}
 
-            stage = "Determine Locked Balances";
-            for (String locker : uniqueLockers) {
-                
-            }    
-        } catch (IOException e) {
-            log.error("Ethereum transaction failure.", e);
-        }
+			stage = "Get Vault Balances";
+			log.trace(stage);
+			String feeVaultAddress = getChainData(forChain).getContracts().get("FeeVault").getAddress();
+			var vaultBalances = getVaultBalances(web3, feeVaultAddress, getParameter(parameters, "rewardTokens"),
+					forChain, snapshotBlock);
 
-        // var ipFsUri = uploadMerkleTree(epochId, tree);
-        // log.info("Epoch {} created - {}", epochId, ipFsUri);
-    }
+			if (vaultBalances.isEmpty()) {
+				log.info("Epoch not created. No rewards in vault.");
+				return;
+			}
 
-    private PinataClient.PinResponse uploadMerkleTree(
-        int epochId,
-        StandardMerkleTree.StandardMerkleTreeData tree
-    ) {
-        var request = 
-            new PinataClient.PinRequest<StandardMerkleTree.StandardMerkleTreeData>(
-                tree, 
-                null,
-                new PinataClient.PinMetadata(String.format("beemer-epoch-%s.json", epochId), new HashMap<String,String>())
-            );
-        
-        log.info("Creating epoch {} and uploading to IPFS...", epochId);
-        return pinata.pinJSON(request);
-    }
+			stage = "Create Epochs";
+			log.trace(stage);
+			var feeVault = contractLoader.loadFeeVault(feeVaultAddress, web3);
+			for (var rb : vaultBalances) {
+				createEpoch(feeVault, rb, addressLockeds, totalLocked);
+			}
 
-    private BlockchainProperties.Chain getChainData(long chainId) {
-        if (chainData == null) {
-            var data = blockchainProperties.getChains()
-                                .stream()
-                                .filter(chain -> chain.getChainId() == chainId)
-                                .findFirst();
-            
-            if (data.isPresent()) {
-                chainData = data.get();
-            } else {
-                throw new IllegalArgumentException("No chain configured for chainId: " + chainId);
-            }
-        }
+		} catch (Exception e) {
+			log.error("Ethereum transaction failure - at stage: {}", stage);
+			throw new ChainTaskFailureException("Epoch creation failed!", stage, e);
+		}
+	}
 
-        return chainData;
-    }
+	Set<String> findUniqueLockers(Beemer beemer, BigInteger createdBlock, BigInteger snapshotBlock) {
+		var chunkSize = BigInteger.valueOf(2000);
+		var ranges = new ArrayList<BigInteger[]>();
+
+		for (BigInteger from = createdBlock; from.compareTo(snapshotBlock) <= 0; from = from.add(chunkSize)) {
+			ranges.add(new BigInteger[]{from, from.add(chunkSize).min(snapshotBlock)});
+		}
+
+		return Flowable.fromIterable(ranges)
+				.concatMap(range -> beemer.lockedEventFlowable(DefaultBlockParameter.valueOf(range[0]),
+						DefaultBlockParameter.valueOf(range[1])))
+				.map(m -> m._of).collect(HashSet<String>::new, Set::add).blockingGet();
+	}
+
+	List<AddressLocked> determineLockedBalances(Beemer beemer, Set<String> uniqueLockers) {
+		return Flowable.fromIterable(uniqueLockers)
+				.flatMap(locker -> beemer.totalBalanceOf(locker).flowable()
+						.flatMap(total -> beemer.balanceOf(locker).flowable()
+								.map(free -> new AddressLocked(locker, total.subtract(free)))))
+				.filter(al -> al.locked().signum() > 0).collect(ArrayList<AddressLocked>::new, List::add).blockingGet();
+	}
+
+	List<RewardBalance> getVaultBalances(Web3j web3, String feeVaultAddress, List<?> rewardTokens, Long forChain,
+			BigInteger snapshotBlock) {
+
+		return rewardTokens.stream().filter(rt -> forChain.equals(getParameter(rt, "chainId"))).map(rt -> {
+			String tokenAddress = getParameter(rt, "rewardToken");
+			var token = contractLoader.loadIERC20(tokenAddress, web3);
+
+			token.setDefaultBlockParameter(DefaultBlockParameter.valueOf(snapshotBlock));
+
+			try {
+				return new RewardBalance(tokenAddress, token.balanceOf(feeVaultAddress).send());
+			} catch (Exception e) {
+				log.warn("Failed to get balance for token {}, treating as zero", tokenAddress);
+				return new RewardBalance(tokenAddress, BigInteger.ZERO);
+			}
+		}).filter(rb -> rb.balance().signum() > 0).collect(Collectors.toList());
+	}
+
+	void createEpoch(FeeVault feeVault, RewardBalance rb, List<AddressLocked> addressLockeds, BigInteger totalLocked)
+			throws Exception {
+		var rewards = addressLockeds.stream()
+				.map(al -> new AddressReward(al.address(), al.locked().multiply(rb.balance()).divide(totalLocked)))
+				.collect(Collectors.toList());
+
+		BigInteger epochAmount = rewards.stream().map(AddressReward::reward).reduce(BigInteger.ZERO, BigInteger::add);
+
+		var leafHashes = rewards.stream().map(
+				ar -> StandardMerkleTree.standardLeafHash(List.of(new Address(ar.address()), new Uint256(ar.reward()))))
+				.collect(Collectors.toList());
+		var tree = StandardMerkleTree.of(leafHashes);
+
+		BigInteger epochId = feeVault.epochCount().send();
+		var treeUri = uploadMerkleTree(epochId, tree.dump());
+
+		var receipt = feeVault.createEpoch(rb.token(), epochAmount, tree.getRoot(), treeUri).send();
+		log.info("Epoch {} created for token {} in tx {}", epochId, rb.token(), receipt.getTransactionHash());
+	}
+
+	private String uploadMerkleTree(BigInteger epochId, StandardMerkleTree.StandardMerkleTreeData tree) {
+		var request = new PinataClient.PinRequest<>(tree, null,
+				new PinataClient.PinMetadata(String.format("beemer-epoch-%s.json", epochId), new HashMap<>()));
+
+		log.info("Uploading Merkle tree for epoch {} to IPFS...", epochId);
+
+		return "ipfs://" + pinata.pinJSON(request).ipfsHash();
+	}
+
+	record AddressLocked(String address, BigInteger locked) {
+	}
+	record AddressReward(String address, BigInteger reward) {
+	}
+	record RewardBalance(String token, BigInteger balance) {
+	}
 }
