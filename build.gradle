@@ -1,0 +1,52 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.0.6'
+	id 'io.spring.dependency-management' version '1.1.7'
+	id 'com.beemer.w3j-codegen'
+}
+
+group = 'com.beemer'
+version = '0.0.1-SNAPSHOT'
+
+ext {
+	azureSpringCloudVersion = '7.3.0'
+}
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(26)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "com.azure.spring:spring-cloud-azure-dependencies:${azureSpringCloudVersion}"
+	}
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'com.azure.spring:spring-cloud-azure-starter-appconfiguration-config'
+	implementation 'org.web3j:core:5.0.3'
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testCompileOnly 'org.projectlombok:lombok'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testAnnotationProcessor 'org.projectlombok:lombok'
+}
+
+w3jCodegen {
+	artifactsDir = file('../yeet/artifacts/contracts')
+	packageName = 'com.beemer.coinservice.contracts'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}

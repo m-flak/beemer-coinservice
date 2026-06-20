@@ -1,0 +1,48 @@
+import org.web3j.codegen.TruffleJsonFunctionWrapperGenerator
+
+extensions.create('w3jCodegen', W3jCodegenExtension)
+
+abstract class W3jCodegenExtension {
+    abstract RegularFileProperty getArtifactsDir()
+    abstract Property<String> getPackageName()
+}
+
+def generatedDir = layout.buildDirectory.dir('generated/sources/web3j/main/java')
+
+tasks.register('generateWeb3jWrappers') {
+    def outputDir = generatedDir.get().asFile
+
+    inputs.dir w3jCodegen.artifactsDir
+    outputs.dir outputDir
+
+    doLast {
+        def artifactsDir = w3jCodegen.artifactsDir.get().asFile
+        def packageName = w3jCodegen.packageName.get()
+        outputDir.mkdirs()
+        artifactsDir.eachFileRecurse(groovy.io.FileType.FILES) { artifact ->
+            if (artifact.name.endsWith('.json')
+                    && !artifact.name.contains('.dbg.')
+                    && !artifact.path.contains('.t.sol')) {
+                new TruffleJsonFunctionWrapperGenerator(
+                        artifact.absolutePath,
+                        outputDir.absolutePath,
+                        packageName,
+                        true,
+                        false
+                ).generate()
+            }
+        }
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir generatedDir
+        }
+    }
+}
+
+tasks.named('compileJava').configure {
+    dependsOn 'generateWeb3jWrappers'
+}
