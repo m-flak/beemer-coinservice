@@ -1,0 +1,13 @@
+# Ansible Inventory: coinservice VPS
+#
+# IMPORTANT: This inventory is for the initial bootstrap run only (port 22).
+# After setup.yml completes, update ansible_port below to match ssh_port
+# and commit the change before running any subsequent playbooks.
+
+[coinservice_hosts]
+your-vps-hostname ansible_host=YOUR.VPS.IP.HERE
+
+[coinservice_hosts:vars]
+ansible_user=root
+ansible_port=22
+ansible_python_interpreter=/usr/bin/python3

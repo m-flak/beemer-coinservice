@@ -1,0 +1,396 @@
+---
+# Playbook: setup.yml
+# Description: Bootstrap a fresh VPS to production-ready state for coinservice.
+#              Run once against a fresh host on port 22. After completion,
+#              update inventory ansible_port to ssh_port for all future runs.
+# Requirements:
+#   - Ansible 2.10+
+#   - ansible-galaxy collection install -r requirements.yml
+#   - Target: Debian/Ubuntu (RedHat support partial)
+# Variables required at runtime:
+#   - ssh_port: non-standard SSH port to bind (required)
+#   - deploy_ssh_public_key: SSH public key for the CI/CD deploy user (required)
+#   - admin_user: username for the personal break-glass account (required)
+#   - admin_ssh_public_key: SSH public key for the admin user (required)
+# Usage:
+#   ansible-playbook -i inventory/hosts setup.yml \
+#     -e ssh_port=XXXXX \
+#     -e deploy_ssh_public_key="ssh-ed25519 AAAA..." \
+#     -e admin_user=matt \
+#     -e admin_ssh_public_key="ssh-ed25519 AAAA..."
+
+- name: Bootstrap VPS for coinservice
+  hosts: coinservice_hosts
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - vars/setup.yml
+
+  pre_tasks:
+    - name: Assert required variables are provided
+      ansible.builtin.assert:
+        that:
+          - ssh_port is defined
+          - ssh_port | int > 1024
+          - ssh_port | int < 65535
+          - deploy_ssh_public_key is defined
+          - deploy_ssh_public_key | length > 0
+          - admin_user is defined
+          - admin_user | length > 0
+          - admin_ssh_public_key is defined
+          - admin_ssh_public_key | length > 0
+        fail_msg: "ssh_port, deploy_ssh_public_key, admin_user, and admin_ssh_public_key are all required"
+      tags:
+        - always
+
+    - name: Update package cache and upgrade all packages (Debian/Ubuntu)
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: full
+        cache_valid_time: 0
+      when: ansible_os_family == "Debian"
+      tags:
+        - packages
+
+    - name: Update all packages (RedHat)
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+      when: ansible_os_family == "RedHat"
+      tags:
+        - packages
+
+  tasks:
+    # --- Automatic security updates ---
+
+    - name: Install unattended-upgrades (Debian/Ubuntu)
+      ansible.builtin.apt:
+        name: unattended-upgrades
+        state: present
+      when: ansible_os_family == "Debian"
+      tags:
+        - security
+
+    - name: Enable automatic security updates (Debian/Ubuntu)
+      ansible.builtin.command:
+        cmd: dpkg-reconfigure -f noninteractive unattended-upgrades
+      changed_when: false
+      when: ansible_os_family == "Debian"
+      tags:
+        - security
+
+    # --- Java ---
+
+    - name: Install required packages for Adoptium repo (Debian/Ubuntu)
+      ansible.builtin.apt:
+        name:
+          - wget
+          - apt-transport-https
+          - gnupg
+        state: present
+      when: ansible_os_family == "Debian"
+      tags:
+        - java
+
+    - name: Download Adoptium GPG key (Debian/Ubuntu)
+      ansible.builtin.get_url:
+        url: https://packages.adoptium.net/artifactory/api/gpg/key/public
+        dest: /etc/apt/trusted.gpg.d/adoptium.asc
+        mode: '0644'
+      when: ansible_os_family == "Debian"
+      tags:
+        - java
+
+    - name: Add Adoptium apt repository (Debian/Ubuntu)
+      ansible.builtin.apt_repository:
+        repo: "deb https://packages.adoptium.net/artifactory/deb {{ ansible_distribution_release }} main"
+        state: present
+        filename: adoptium
+        update_cache: true
+      when: ansible_os_family == "Debian"
+      tags:
+        - java
+
+    - name: Install Temurin JDK (Debian/Ubuntu)
+      ansible.builtin.apt:
+        name: "temurin-{{ java_version }}-jdk"
+        state: present
+      when: ansible_os_family == "Debian"
+      tags:
+        - java
+
+    - name: Add Adoptium DNF repository (RedHat)
+      ansible.builtin.yum_repository:
+        name: adoptium
+        description: Adoptium Temurin
+        baseurl: https://packages.adoptium.net/artifactory/rpm/rhel/$releasever/$basearch
+        gpgkey: https://packages.adoptium.net/artifactory/api/gpg/key/public
+        gpgcheck: true
+        enabled: true
+      when: ansible_os_family == "RedHat"
+      tags:
+        - java
+
+    - name: Install Temurin JDK (RedHat)
+      ansible.builtin.dnf:
+        name: "temurin-{{ java_version }}-jdk"
+        state: present
+      when: ansible_os_family == "RedHat"
+      tags:
+        - java
+
+    # --- Timezone ---
+
+    - name: Set system timezone
+      community.general.timezone:
+        name: "{{ system_timezone }}"
+      tags:
+        - system
+
+    # --- Users ---
+
+    - name: Ensure deploy group exists
+      ansible.builtin.group:
+        name: deploy
+        state: present
+      tags:
+        - users
+
+    - name: Ensure deploy user exists
+      ansible.builtin.user:
+        name: deploy
+        group: deploy
+        shell: /bin/bash
+        create_home: true
+        state: present
+      tags:
+        - users
+
+    - name: Authorize SSH public key for deploy user
+      ansible.builtin.authorized_key:
+        user: deploy
+        key: "{{ deploy_ssh_public_key }}"
+        state: present
+        exclusive: true
+      tags:
+        - users
+
+    - name: Grant deploy user passwordless sudo
+      ansible.builtin.copy:
+        content: "deploy ALL=(ALL) NOPASSWD:ALL\n"
+        dest: /etc/sudoers.d/deploy
+        owner: root
+        group: root
+        mode: '0440'
+        validate: /usr/sbin/visudo -cf %s
+      tags:
+        - users
+
+    - name: Ensure admin group exists
+      ansible.builtin.group:
+        name: "{{ admin_user }}"
+        state: present
+      tags:
+        - users
+
+    - name: Ensure admin user exists
+      ansible.builtin.user:
+        name: "{{ admin_user }}"
+        group: "{{ admin_user }}"
+        groups: sudo
+        append: true
+        shell: /bin/bash
+        create_home: true
+        state: present
+      tags:
+        - users
+
+    - name: Authorize SSH public key for admin user
+      ansible.builtin.authorized_key:
+        user: "{{ admin_user }}"
+        key: "{{ admin_ssh_public_key }}"
+        state: present
+        exclusive: true
+      tags:
+        - users
+
+    - name: Grant admin user passwordless sudo
+      ansible.builtin.copy:
+        content: "{{ admin_user }} ALL=(ALL) NOPASSWD:ALL\n"
+        dest: "/etc/sudoers.d/{{ admin_user }}"
+        owner: root
+        group: root
+        mode: '0440'
+        validate: /usr/sbin/visudo -cf %s
+      tags:
+        - users
+
+    - name: Ensure coinservice group exists
+      ansible.builtin.group:
+        name: coinservice
+        system: true
+        state: present
+      tags:
+        - users
+
+    - name: Ensure coinservice system user exists
+      ansible.builtin.user:
+        name: coinservice
+        group: coinservice
+        system: true
+        shell: /usr/sbin/nologin
+        home: /opt/coinservice
+        create_home: false
+        state: present
+      tags:
+        - users
+
+    # --- SSH hardening ---
+
+    - name: Set non-standard SSH port
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?Port '
+        line: "Port {{ ssh_port }}"
+        state: present
+        backup: true
+      notify: Restart sshd
+      tags:
+        - ssh
+
+    - name: Disable root login
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin'
+        line: 'PermitRootLogin no'
+        state: present
+      notify: Restart sshd
+      tags:
+        - ssh
+
+    - name: Disable password authentication
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+        state: present
+      notify: Restart sshd
+      tags:
+        - ssh
+
+    - name: Disable challenge-response authentication
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?ChallengeResponseAuthentication'
+        line: 'ChallengeResponseAuthentication no'
+        state: present
+      notify: Restart sshd
+      tags:
+        - ssh
+
+    - name: Restrict SSH access to deploy and admin users
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?AllowUsers'
+        line: "AllowUsers deploy {{ admin_user }}"
+        state: present
+      notify: Restart sshd
+      tags:
+        - ssh
+
+    - name: Disable X11 forwarding
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?X11Forwarding'
+        line: 'X11Forwarding no'
+        state: present
+      notify: Restart sshd
+      tags:
+        - ssh
+
+    # --- Firewall ---
+
+    - name: Install ufw (Debian/Ubuntu)
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+      when: ansible_os_family == "Debian"
+      tags:
+        - firewall
+
+    - name: Allow SSH on non-standard port
+      community.general.ufw:
+        rule: allow
+        port: "{{ ssh_port }}"
+        proto: tcp
+        comment: "SSH"
+      tags:
+        - firewall
+
+    - name: Allow HTTPS (443)
+      community.general.ufw:
+        rule: allow
+        port: "443"
+        proto: tcp
+        comment: "HTTPS for coinservice"
+      tags:
+        - firewall
+
+    - name: Enable ufw with default deny inbound
+      community.general.ufw:
+        state: enabled
+        direction: incoming
+        policy: deny
+      tags:
+        - firewall
+
+    # --- Port redirect 443 → 8443 via ufw before.rules ---
+
+    - name: Insert NAT redirect rules into ufw before.rules
+      ansible.builtin.blockinfile:
+        path: /etc/ufw/before.rules
+        insertbefore: BOF
+        marker: "# {mark} ANSIBLE MANAGED - coinservice NAT redirect"
+        block: |
+          *nat
+          :PREROUTING ACCEPT [0:0]
+          :OUTPUT ACCEPT [0:0]
+          -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443
+          -A OUTPUT -p tcp -d 127.0.0.1 --dport 443 -j REDIRECT --to-port 8443
+          COMMIT
+      notify: Reload ufw
+      tags:
+        - firewall
+        - nat
+
+    # --- Kernel hardening ---
+
+    - name: Apply network hardening sysctl parameters
+      ansible.posix.sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: true
+        sysctl_file: /etc/sysctl.d/99-coinservice-hardening.conf
+      loop:
+        - { key: net.ipv4.tcp_syncookies,                value: "1" }
+        - { key: net.ipv4.conf.all.accept_redirects,     value: "0" }
+        - { key: net.ipv4.conf.default.accept_redirects, value: "0" }
+        - { key: net.ipv4.conf.all.send_redirects,       value: "0" }
+        - { key: net.ipv4.conf.default.send_redirects,   value: "0" }
+        - { key: net.ipv4.conf.all.accept_source_route,  value: "0" }
+        - { key: kernel.randomize_va_space,              value: "2" }
+      tags:
+        - sysctl
+        - security
+
+  handlers:
+    - name: Restart sshd
+      ansible.builtin.systemd:
+        name: "{{ 'ssh' if ansible_os_family == 'Debian' else 'sshd' }}"
+        state: restarted
+
+    - name: Reload ufw
+      community.general.ufw:
+        state: reloaded

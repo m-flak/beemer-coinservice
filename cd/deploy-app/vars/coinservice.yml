@@ -1,0 +1,25 @@
+---
+# User and group
+coinservice_user: coinservice
+coinservice_group: coinservice
+
+# Paths
+coinservice_deploy_dir: /opt/coinservice
+coinservice_log_dir: /var/log/coinservice
+coinservice_jar_name: coinservice.jar
+# coinservice_jar_src must be passed at runtime:
+#   -e coinservice_jar_src=../../build/libs/coinservice.jar
+
+# Java - update if Java 26 is installed to a non-default path
+coinservice_java_executable: /usr/bin/java
+coinservice_jvm_opts: >-
+  -Xms256m
+  -Xmx512m
+  -XX:+UseG1GC
+
+# Application
+coinservice_port: 8080
+
+# Azure credentials - must be passed at runtime from Key Vault (via CI):
+#   -e coinservice_azure_client_id=$AZURE_CLIENT_ID
+#   -e coinservice_azure_client_secret=$AZURE_CLIENT_SECRET
