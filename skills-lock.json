@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "java-expert": {
+      "source": "personamanagmentlayer/pcl",
+      "sourceType": "github",
+      "skillPath": "stdlib/languages/java-expert/SKILL.md",
+      "computedHash": "5c422dbf03555be8f862d850035b0ff7b5dc4437acb720ff0abcda83656a60dd"
+    }
+  }
+}
