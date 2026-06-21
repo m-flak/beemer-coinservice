@@ -39,6 +39,10 @@ dependencyManagement {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+	implementation 'org.springframework.boot:spring-boot-starter-oauth2-authorization-server'
+	implementation 'com.github.ben-manes.caffeine:caffeine'
+	implementation 'com.moonstoneid:siwe-java:1.0.1'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	implementation 'com.azure.spring:spring-cloud-azure-starter-appconfiguration-config'
 	implementation 'org.web3j:core:5.0.3'

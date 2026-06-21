@@ -1,4 +1,4 @@
-package com.beemer.coinservice.config;
+package com.beemer.coinservice.infrastructure.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -31,9 +31,9 @@ import org.web3j.protocol.core.DefaultBlockParameter;
 import org.web3j.protocol.core.RemoteFunctionCall;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 
-import com.beemer.coinservice.chaintask.ContractLoader;
-import com.beemer.coinservice.client.PinataClient;
-import com.beemer.coinservice.config.BlockchainProperties;
+import com.beemer.coinservice.infrastructure.ContractLoader;
+import com.beemer.coinservice.infrastructure.PinataClient;
+import com.beemer.coinservice.infrastructure.config.BlockchainProperties;
 import com.beemer.coinservice.contracts.Beemer;
 import com.beemer.coinservice.contracts.FeeVault;
 import com.beemer.coinservice.contracts.IERC20;

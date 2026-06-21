@@ -21,10 +21,10 @@ import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameter;
 
 import com.beemer.coinservice.chaintask.AbstractChainTask;
-import com.beemer.coinservice.chaintask.ContractLoader;
+import com.beemer.coinservice.infrastructure.ContractLoader;
 import com.beemer.coinservice.chaintask.exception.ChainTaskFailureException;
-import com.beemer.coinservice.client.PinataClient;
-import com.beemer.coinservice.config.BlockchainProperties;
+import com.beemer.coinservice.infrastructure.PinataClient;
+import com.beemer.coinservice.infrastructure.config.BlockchainProperties;
 import com.beemer.coinservice.contracts.Beemer;
 import com.beemer.coinservice.contracts.FeeVault;
 import com.beemer.coinservice.utils.StandardMerkleTree;

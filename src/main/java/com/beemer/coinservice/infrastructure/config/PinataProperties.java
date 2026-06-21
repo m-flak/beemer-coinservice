@@ -1,4 +1,4 @@
-package com.beemer.coinservice.config;
+package com.beemer.coinservice.infrastructure.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

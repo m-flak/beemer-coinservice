@@ -2,7 +2,7 @@ package com.beemer.coinservice.chaintask;
 
 import java.util.Objects;
 
-import com.beemer.coinservice.config.BlockchainProperties;
+import com.beemer.coinservice.infrastructure.config.BlockchainProperties;
 
 public abstract class AbstractChainTask implements ChainTask {
 	private BlockchainProperties.Chain chainData = null;

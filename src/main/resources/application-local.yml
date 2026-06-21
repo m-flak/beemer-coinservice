@@ -1,7 +1,14 @@
+beemer:
+  siwe:
+    domain: localhost
+    uri: https://localhost:4200
+    issuer: https://localhost:8443
+
 logging:
   structured:
     format:
       console:
+
 
 server:
   port: 8443

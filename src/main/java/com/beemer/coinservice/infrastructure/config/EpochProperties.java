@@ -1,4 +1,4 @@
-package com.beemer.coinservice.config;
+package com.beemer.coinservice.infrastructure.config;
 
 import java.util.ArrayList;
 import java.util.List;

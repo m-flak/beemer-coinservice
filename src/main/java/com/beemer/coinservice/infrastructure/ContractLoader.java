@@ -1,4 +1,4 @@
-package com.beemer.coinservice.chaintask;
+package com.beemer.coinservice.infrastructure;
 
 import org.springframework.stereotype.Component;
 import org.web3j.crypto.Credentials;

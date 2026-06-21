@@ -1,7 +1,7 @@
 logging:
   structured:
     format:
-      console: json
+      console: logstash
 
 management:
   endpoints:
@@ -19,9 +19,21 @@ management:
     build:
       enabled: true
 
+# TODO: Add to AZ App Configuration
+# beemer:
+#   siwe:
+#     domain: ""
+#     uri: ""
+#     issuer: ""
+
 spring:
   application:
     name: coinservice
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://sts.windows.net/${spring.cloud.azure.profile.tenant-id}/
   config:
     import: azureAppConfiguration
   cloud:

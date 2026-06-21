@@ -1,6 +1,6 @@
-package com.beemer.coinservice.config;
+package com.beemer.coinservice.infrastructure.config;
 
-import com.beemer.coinservice.client.PinataClient;
+import com.beemer.coinservice.infrastructure.PinataClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;

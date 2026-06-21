@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component;
 
 import com.beemer.coinservice.chaintask.epoch.CreateEpoch;
 import com.beemer.coinservice.chaintask.exception.ChainTaskFailureException;
-import com.beemer.coinservice.config.BlockchainProperties;
-import com.beemer.coinservice.config.EpochProperties;
+import com.beemer.coinservice.infrastructure.config.BlockchainProperties;
+import com.beemer.coinservice.infrastructure.config.EpochProperties;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,9 +33,9 @@ public class CreateEpochCronJob {
 			try {
 				createEpoch.getObject().execute(chain.getChainId(), epochProperties);
 			} catch (ChainTaskFailureException ctfe) {
-				//TODO: do something for observability with getFailureStage
+				// TODO: do something for observability with getFailureStage
 			}
-			
+
 		}
 	}
 }

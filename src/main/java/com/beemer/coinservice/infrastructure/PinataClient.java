@@ -1,4 +1,4 @@
-package com.beemer.coinservice.client;
+package com.beemer.coinservice.infrastructure;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
