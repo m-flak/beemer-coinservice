@@ -365,7 +365,9 @@
           *nat
           :PREROUTING ACCEPT [0:0]
           :OUTPUT ACCEPT [0:0]
-          -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443
+          {% for host in groups['coinservice_app_hosts'] %}
+          -A PREROUTING -p tcp -d {{ hostvars[host]['ansible_host'] }} --dport 443 -j REDIRECT --to-port 8443
+          {% endfor %}
           -A OUTPUT -p tcp -d 127.0.0.1 --dport 443 -j REDIRECT --to-port 8443
           COMMIT
       when: nat_redirect | default(false)
