@@ -39,3 +39,11 @@ out/
 
 ### Local SSL ###
 local-ssl/
+
+### Ansible Hosts
+cd/setup-host/inventory/hosts
+
+### Ansible SSL certs (drop real certs here, never commit them)
+cd/setup-host/files/*.pem
+cd/setup-host/files/*.crt
+cd/setup-host/files/*.key

@@ -1,10 +1,13 @@
 ---
 # Timezone for the VPS — change to your preferred zone
 # List: timedatectl list-timezones
-system_timezone: UTC
+system_timezone: America/Chicago
 
 # Java version to install via Adoptium Temurin
 java_version: 26
 
 # ssh_port, deploy_ssh_public_key, admin_user, admin_ssh_public_key
 # must all be passed at runtime — no defaults to avoid accidental misconfiguration
+#
+# When targeting coinservice_nginx_host, also required at runtime:
+#   server_name, nginx_ssl_certificate, nginx_ssl_certificate_key

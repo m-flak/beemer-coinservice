@@ -1,0 +1,22 @@
+[Unit]
+Description=coinservice
+After=network.target
+
+[Service]
+Type=simple
+User={{ coinservice_user }}
+Group={{ coinservice_group }}
+WorkingDirectory={{ coinservice_deploy_dir }}
+EnvironmentFile=/etc/coinservice/env
+ExecStart={{ coinservice_java_executable }} {{ coinservice_jvm_opts }} -jar {{ coinservice_deploy_dir }}/{{ coinservice_jar_name }}
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=coinservice
+NoNewPrivileges=true
+PrivateTmp=true
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

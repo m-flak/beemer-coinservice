@@ -29,11 +29,13 @@
         that:
           - coinservice_jar_src is defined
           - coinservice_jar_src | length > 0
+          - coinservice_environment is defined
+          - coinservice_environment in ['production', 'development']
           - coinservice_azure_client_id is defined
           - coinservice_azure_client_id | length > 0
           - coinservice_azure_client_secret is defined
           - coinservice_azure_client_secret | length > 0
-        fail_msg: "coinservice_jar_src, coinservice_azure_client_id, and coinservice_azure_client_secret are all required"
+        fail_msg: "coinservice_jar_src, coinservice_environment, coinservice_azure_client_id, and coinservice_azure_client_secret are all required"
       tags:
         - always
 

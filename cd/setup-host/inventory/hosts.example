@@ -1,0 +1,29 @@
+# Ansible Inventory: coinservice VPS
+#
+# Four IPs across hosts:
+#   coinservice_app_hosts   — coinservice API bound here; 443→8443 NAT redirect applied
+#   coinservice_nginx_hosts — nginx bound here; serves Angular SPA on 443 directly
+#
+# IMPORTANT: This inventory is for the initial bootstrap run only (port 22).
+# After setup.yml completes, update ansible_port below to match ssh_port
+# and commit the change before running any subsequent playbooks.
+
+[coinservice_app_hosts]
+coinservice-1 ansible_host=YOUR.VPS.IP.1
+coinservice-2 ansible_host=YOUR.VPS.IP.2
+
+[coinservice_nginx_hosts]
+coinservice-nginx-production ansible_host=YOUR.VPS.IP.3 server_name=YOUR.PRODUCTION.DOMAIN nginx_webroot=/var/www/coinservice/production nginx_ssl_certificate=/etc/ssl/coinservice/production/fullchain.pem nginx_ssl_certificate_key=/etc/ssl/coinservice/production/privkey.pem
+coinservice-nginx-development ansible_host=YOUR.VPS.IP.4 server_name=YOUR.DEVELOPMENT.DOMAIN nginx_webroot=/var/www/coinservice/development nginx_ssl_certificate=/etc/ssl/coinservice/development/fullchain.pem nginx_ssl_certificate_key=/etc/ssl/coinservice/development/privkey.pem
+
+[coinservice_hosts:children]
+coinservice_app_hosts
+coinservice_nginx_hosts
+
+[coinservice_hosts:vars]
+ansible_user=root
+ansible_port=22
+ansible_python_interpreter=/usr/bin/python3
+
+[coinservice_app_hosts:vars]
+nat_redirect=true

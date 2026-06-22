@@ -12,6 +12,8 @@
 #   - deploy_ssh_public_key: SSH public key for the CI/CD deploy user (required)
 #   - admin_user: username for the personal break-glass account (required)
 #   - admin_ssh_public_key: SSH public key for the admin user (required)
+# For coinservice_nginx_hosts, server_name and SSL cert paths are set as host vars
+# in the inventory rather than passed at runtime (they differ per host).
 # Usage:
 #   ansible-playbook -i inventory/hosts setup.yml \
 #     -e ssh_port=XXXXX \
@@ -28,6 +30,13 @@
     - vars/setup.yml
 
   pre_tasks:
+    - name: Install Python 3 (raw — runs before Python is available)
+      ansible.builtin.raw: |
+        command -v python3 || apt-get install -y python3
+      changed_when: false
+      tags:
+        - always
+
     - name: Assert required variables are provided
       ansible.builtin.assert:
         that:
@@ -333,7 +342,7 @@
         rule: allow
         port: "443"
         proto: tcp
-        comment: "HTTPS for coinservice"
+        comment: "HTTPS"
       tags:
         - firewall
 
@@ -359,6 +368,7 @@
           -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443
           -A OUTPUT -p tcp -d 127.0.0.1 --dport 443 -j REDIRECT --to-port 8443
           COMMIT
+      when: nat_redirect | default(false)
       notify: Reload ufw
       tags:
         - firewall
@@ -393,4 +403,135 @@
 
     - name: Reload ufw
       community.general.ufw:
+        state: reloaded
+
+- name: Configure nginx on coinservice_nginx_hosts
+  hosts: coinservice_nginx_hosts
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - vars/setup.yml
+
+  pre_tasks:
+    - name: Assert nginx-specific variables are provided
+      ansible.builtin.assert:
+        that:
+          - server_name is defined
+          - server_name | length > 0
+          - nginx_ssl_certificate is defined
+          - nginx_ssl_certificate | length > 0
+          - nginx_ssl_certificate_key is defined
+          - nginx_ssl_certificate_key | length > 0
+        fail_msg: "server_name, nginx_ssl_certificate, and nginx_ssl_certificate_key are required"
+      tags:
+        - always
+
+  tasks:
+    - name: Install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: true
+      when: ansible_os_family == "Debian"
+      tags:
+        - nginx
+
+    - name: Create SSL certificate directory
+      ansible.builtin.file:
+        path: "{{ nginx_ssl_certificate | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+      tags:
+        - nginx
+        - ssl
+
+    - name: Copy SSL certificate
+      ansible.builtin.copy:
+        src: "{{ inventory_hostname }}-fullchain.pem"
+        dest: "{{ nginx_ssl_certificate }}"
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reload nginx
+      tags:
+        - nginx
+        - ssl
+
+    - name: Copy SSL private key
+      ansible.builtin.copy:
+        src: "{{ inventory_hostname }}-privkey.pem"
+        dest: "{{ nginx_ssl_certificate_key }}"
+        owner: root
+        group: root
+        mode: '0600'
+      notify: Reload nginx
+      tags:
+        - nginx
+        - ssl
+
+    - name: Create SPA webroot
+      ansible.builtin.file:
+        path: "{{ nginx_webroot }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+      tags:
+        - nginx
+
+    - name: Deploy global nginx.conf
+      ansible.builtin.template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+        owner: root
+        group: root
+        mode: '0644'
+      run_once: true
+      notify: Reload nginx
+      tags:
+        - nginx
+
+    - name: Disable default nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Reload nginx
+      tags:
+        - nginx
+
+    - name: Deploy site config
+      ansible.builtin.template:
+        src: templates/site.conf.j2
+        dest: "/etc/nginx/sites-available/{{ inventory_hostname }}.conf"
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reload nginx
+      tags:
+        - nginx
+
+    - name: Enable site
+      ansible.builtin.file:
+        src: "/etc/nginx/sites-available/{{ inventory_hostname }}.conf"
+        dest: "/etc/nginx/sites-enabled/{{ inventory_hostname }}.conf"
+        state: link
+      notify: Reload nginx
+      tags:
+        - nginx
+
+    - name: Enable and start nginx
+      ansible.builtin.systemd:
+        name: nginx
+        enabled: true
+        state: started
+      tags:
+        - nginx
+
+  handlers:
+    - name: Reload nginx
+      ansible.builtin.systemd:
+        name: nginx
         state: reloaded

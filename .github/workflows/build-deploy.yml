@@ -1,0 +1,113 @@
+name: Build and Deploy Coinservice
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+      - development
+  workflow_dispatch:
+
+# Required for OIDC login to Azure
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+
+    # GHA Environment gates production deploys behind required reviewers if configured.
+    # Create "production" and "development" environments in repo Settings → Environments.
+    # base_ref is the target branch on PR events; ref_name is the branch on workflow_dispatch.
+    environment: ${{ (github.base_ref || github.ref_name) == 'main' && 'production' || 'development' }}
+
+    env:
+      ENVIRONMENT: ${{ (github.base_ref || github.ref_name) == 'main' && 'production' || 'development' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Java 26
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '26'
+
+      - name: Build JAR
+        run: ./gradlew build
+      
+      - name: Get JAR version
+        id: jar-version
+        run: |
+          VERSION=$(./gradlew properties | grep ^version | awk '{ print $2; exit }')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Fetch secrets from Key Vault
+        id: kv
+        env:
+          VAULT: ${{ secrets.AZURE_KEY_VAULT_NAME }}
+        run: |
+          fetch() { az keyvault secret show --vault-name "$VAULT" --name "$1" --query value -o tsv; }
+
+          SSH_KEY=$(fetch "DEPLOY-SSH-KEY")
+          SSH_PORT=$(fetch "SSH-PORT")
+          CLIENT_ID=$(fetch "AZURE-CLIENT-ID")
+          CLIENT_SECRET=$(fetch "AZURE-CLIENT-SECRET")
+
+          # Mask secrets before they can appear in any log line
+          echo "::add-mask::$SSH_KEY"
+          echo "::add-mask::$CLIENT_ID"
+          echo "::add-mask::$CLIENT_SECRET"
+
+          # Multiline ssh_key uses heredoc syntax; all writes grouped into one redirect
+          {
+            echo "ssh_port=$SSH_PORT"
+            echo "ssh_key<<__EOF__"
+            echo "$SSH_KEY"
+            echo "__EOF__"
+            echo "client_id=$CLIENT_ID"
+            echo "client_secret=$CLIENT_SECRET"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install Ansible
+        run: pip install --quiet ansible
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ steps.kv.outputs.ssh_key }}
+          HOST: ${{ github.ref_name == 'main' && vars.PRODUCTION_HOST || vars.DEVELOPMENT_HOST }}
+          SSH_PORT: ${{ steps.kv.outputs.ssh_port }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H -p "$SSH_PORT" "$HOST" >> ~/.ssh/known_hosts
+
+      - name: Run deploy playbook
+        env:
+          HOST: ${{ github.ref_name == 'main' && vars.PRODUCTION_HOST || vars.DEVELOPMENT_HOST }}
+          SSH_PORT: ${{ steps.kv.outputs.ssh_port }}
+          CLIENT_ID: ${{ steps.kv.outputs.client_id }}
+          CLIENT_SECRET: ${{ steps.kv.outputs.client_secret }}
+          JAR_VERSION: ${{ steps.jar-version.outputs.version }}
+        run: |
+          ansible-playbook \
+            -i "${HOST}," \
+            --private-key ~/.ssh/deploy_key \
+            -u deploy \
+            -e ansible_port="$SSH_PORT" \
+            -e coinservice_environment="$ENVIRONMENT" \
+            -e coinservice_jar_src="build/libs/coinservice-$JAR_VERSION.jar" \
+            -e coinservice_azure_client_id="$CLIENT_ID" \
+            -e coinservice_azure_client_secret="$CLIENT_SECRET" \
+            cd/deploy-app/deploy.yml
