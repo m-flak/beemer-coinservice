@@ -27,8 +27,10 @@ import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.web3j.abi.datatypes.Address;
 import org.web3j.abi.datatypes.generated.Uint256;
 import org.web3j.protocol.Web3j;
-import org.web3j.protocol.core.DefaultBlockParameter;
+import org.web3j.protocol.core.Request;
 import org.web3j.protocol.core.RemoteFunctionCall;
+import org.web3j.protocol.core.methods.request.EthFilter;
+import org.web3j.protocol.core.methods.response.EthLog;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 
 import com.beemer.coinservice.contracts.Beemer;
@@ -70,17 +72,28 @@ class CreateEpochTests {
 	}
 
 	@Test
-	void findUniqueLockers_returnsAddressFromEvent() {
+	@SuppressWarnings("unchecked")
+	void findUniqueLockers_returnsAddressFromEvent() throws Exception {
 		var mockBeemer = mock(Beemer.class);
-		var event = new Beemer.LockedEventResponse();
-		event._of = "0xdeadbeef";
+		String address = "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
+		String paddedTopic = "0x000000000000000000000000deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
 
-		when(mockBeemer.lockedEventFlowable(any(DefaultBlockParameter.class), any(DefaultBlockParameter.class)))
-				.thenReturn(Flowable.just(event));
+		when(mockBeemer.getContractAddress()).thenReturn("0x0000000000000000000000000000000000001234");
 
-		var result = createEpoch.findUniqueLockers(mockBeemer, BigInteger.ZERO, BigInteger.valueOf(100));
+		EthLog.LogObject logObject = mock(EthLog.LogObject.class);
+		when(logObject.get()).thenReturn(logObject);
+		when(logObject.getTopics()).thenReturn(List.of("0xsignaturehash", paddedTopic));
 
-		assertThat(result).containsExactly("0xdeadbeef");
+		EthLog ethLog = mock(EthLog.class);
+		when(ethLog.getLogs()).thenReturn(List.of(logObject));
+
+		Request<?, EthLog> mockRequest = mock(Request.class);
+		when(mockRequest.send()).thenReturn(ethLog);
+		when(web3j.ethGetLogs(any(EthFilter.class))).thenReturn((Request) mockRequest);
+
+		var result = createEpoch.findUniqueLockers(web3j, mockBeemer, BigInteger.ZERO, BigInteger.valueOf(100));
+
+		assertThat(result).containsExactly(address);
 	}
 
 	@Test

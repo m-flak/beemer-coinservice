@@ -16,7 +16,9 @@ import lombok.extern.slf4j.Slf4j;
 public class CronJob {
 	private final List<Chain> blockChains;
 
-	protected void run(ObjectProvider<? extends ChainTask> taskProvider, Object taskParameters) {
+	public void run() {}
+
+	protected <T extends ChainTask> void run(ObjectProvider<T> taskProvider, Object taskParameters) {
 		for (var chain : blockChains) {
 			ChainTask task = taskProvider.getObject();
 			log.info("Preparing to run {} on {} ({})...", task.getClass().getSimpleName(), chain.getName(),

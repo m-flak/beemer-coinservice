@@ -9,26 +9,28 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import io.reactivex.Flowable;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
+import org.web3j.abi.EventEncoder;
 import org.web3j.abi.datatypes.Address;
 import org.web3j.abi.datatypes.generated.Uint256;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.DefaultBlockParameter;
+import org.web3j.protocol.core.methods.request.EthFilter;
+import org.web3j.protocol.core.methods.response.EthLog;
 
 import com.beemer.coinservice.chaintask.AbstractChainTask;
-import com.beemer.coinservice.infrastructure.ContractLoader;
 import com.beemer.coinservice.chaintask.exception.ChainTaskFailureException;
-import com.beemer.coinservice.infrastructure.PinataClient;
-import com.beemer.coinservice.infrastructure.config.BlockchainProperties;
 import com.beemer.coinservice.contracts.Beemer;
 import com.beemer.coinservice.contracts.FeeVault;
+import com.beemer.coinservice.infrastructure.ContractLoader;
+import com.beemer.coinservice.infrastructure.PinataClient;
+import com.beemer.coinservice.infrastructure.config.BlockchainProperties;
 import com.beemer.coinservice.utils.StandardMerkleTree;
 
+import io.reactivex.Flowable;
 import jakarta.annotation.Nonnull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -55,19 +57,21 @@ public class CreateEpoch extends AbstractChainTask {
 
 	@Override
 	public void execute(Long forChain, @Nonnull Object parameters) {
-		var web3 = web3jInstances.get(forChain);
-		var beemer = contractLoader.loadBeemer(getChainData(forChain).getContracts().get(BEEMER).getAddress(), web3);
-
-		String stage = "Get Block Number";
+		String stage = "Load Contracts";
 		log.trace(stage);
 		try {
+			var web3 = web3jInstances.get(forChain);
+			var beemer = contractLoader.loadBeemer(getChainData(forChain).getContracts().get(BEEMER).getAddress(), web3);
+
+			stage = "Get Block Number";
+			log.trace(stage);
 			var snapshotBlock = web3.ethBlockNumber().send().getBlockNumber();
 
 			stage = "Find Unique Lockers";
 			log.trace(stage);
 			BigInteger fromBlock = scanStore.get(forChain).map(b -> b.add(BigInteger.ONE))
 					.orElse(getChainData(forChain).getContracts().get(BEEMER).getCreatedBlock()).min(snapshotBlock);
-			var uniqueLockers = findUniqueLockers(beemer, fromBlock, snapshotBlock);
+			var uniqueLockers = findUniqueLockers(web3, beemer, fromBlock, snapshotBlock);
 			scanStore.update(forChain, snapshotBlock);
 
 			stage = "Determine Locked Balances";
@@ -106,18 +110,23 @@ public class CreateEpoch extends AbstractChainTask {
 		}
 	}
 
-	Set<String> findUniqueLockers(Beemer beemer, BigInteger createdBlock, BigInteger snapshotBlock) {
+	Set<String> findUniqueLockers(Web3j web3, Beemer beemer, BigInteger createdBlock, BigInteger snapshotBlock)
+			throws Exception {
 		var chunkSize = BigInteger.valueOf(2000);
-		var ranges = new ArrayList<BigInteger[]>();
+		Set<String> lockers = new HashSet<>();
 
 		for (BigInteger from = createdBlock; from.compareTo(snapshotBlock) <= 0; from = from.add(chunkSize)) {
-			ranges.add(new BigInteger[]{from, from.add(chunkSize).min(snapshotBlock)});
+			BigInteger to = from.add(chunkSize).min(snapshotBlock);
+			EthFilter filter = new EthFilter(DefaultBlockParameter.valueOf(from), DefaultBlockParameter.valueOf(to),
+					beemer.getContractAddress());
+			filter.addSingleTopic(EventEncoder.encode(Beemer.LOCKED_EVENT));
+			web3.ethGetLogs(filter).send().getLogs().stream()
+					.map(logs -> ((EthLog.LogObject) logs.get()).getTopics().get(1))
+					.map(topic -> "0x" + topic.substring(26))
+					.forEach(lockers::add);
 		}
 
-		return Flowable.fromIterable(ranges)
-				.concatMap(range -> beemer.lockedEventFlowable(DefaultBlockParameter.valueOf(range[0]),
-						DefaultBlockParameter.valueOf(range[1])))
-				.map(m -> m._of).collect(HashSet<String>::new, Set::add).blockingGet();
+		return lockers;
 	}
 
 	List<AddressLocked> determineLockedBalances(Beemer beemer, Set<String> uniqueLockers) {

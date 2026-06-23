@@ -51,48 +51,6 @@ parse_args() {
   done
 }
 
-# Returns the exp claim (Unix seconds) from a JWT, or empty string on failure.
-jwt_exp() {
-  python3 -c "
-import sys, base64, json
-payload = sys.argv[1].split('.')[1]
-payload += '=' * (4 - len(payload) % 4)
-print(json.loads(base64.urlsafe_b64decode(payload))['exp'])
-" "$1" 2>/dev/null || true
-}
-
-# Echoes a valid cached token if one exists, otherwise fetches and caches a new one.
-get_token() {
-  local cache_file="${HOME}/.cache/coinservice/token_${TENANT}"
-  local token=""
-
-  if [[ -f "$cache_file" ]]; then
-    token=$(cat "$cache_file")
-    local exp now
-    exp=$(jwt_exp "$token")
-    now=$(date +%s)
-    # Treat the token as expired 60 seconds early to avoid edge cases.
-    if [[ -n "$exp" && "$exp" -gt $((now + 60)) ]]; then
-      echo "$token"
-      return 0
-    fi
-  fi
-
-  token=$("$SCRIPT_DIR/get-token.sh" \
-    --tenant "$TENANT" \
-    --client "AZURE-CLIENT-ID" \
-    --secret "MY-API-KEY" \
-    .default)
-
-  [[ -z "$token" ]] && { echo "error: failed to obtain access token" >&2; exit 1; }
-
-  mkdir -p "$(dirname "$cache_file")"
-  echo "$token" > "$cache_file"
-  chmod 600 "$cache_file"
-
-  echo "$token"
-}
-
 main() {
   parse_args "$@"
 
@@ -101,7 +59,11 @@ main() {
   [[ -z "$ENDPOINT" ]] && { echo "error: ENDPOINT is required" >&2; usage; }
 
   local token
-  token=$(get_token)
+  token=$("$SCRIPT_DIR/get-token.sh" \
+    --tenant "$TENANT" \
+    --client "AZURE-CLIENT-ID" \
+    --secret "MY-API-KEY" \
+    .default)
 
   local response
   response=$(curl --no-progress-meter --fail-with-body ${INSECURE} \

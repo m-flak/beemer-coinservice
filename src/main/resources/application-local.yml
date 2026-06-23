@@ -5,6 +5,8 @@ beemer:
     issuer: https://localhost:8443
 
 logging:
+  level:
+      com.beemer.coinservice.chaintask.epoch.CreateEpoch: trace
   structured:
     format:
       console:
@@ -13,13 +15,13 @@ logging:
 server:
   port: 8443
   ssl:
-    bundle: local
+    bundle: coinservice
 
 spring:
   ssl:
     bundle:
       pem:
-        local:
+        coinservice:
           keystore:
             certificate: file:local-ssl/localhost.pem
             private-key: file:local-ssl/localhost-key.pem
