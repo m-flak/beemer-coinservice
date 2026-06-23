@@ -14,6 +14,9 @@
 #   - admin_ssh_public_key: SSH public key for the admin user (required)
 # For coinservice_nginx_hosts, server_name and SSL cert paths are set as host vars
 # in the inventory rather than passed at runtime (they differ per host).
+# For the Alloy play (coinservice_hosts), grafana_cloud_prometheus_url/user and
+# grafana_cloud_loki_url/user live in vars/setup.yml; only grafana_cloud_api_key
+# must be passed at runtime (it is the secret Grafana Cloud API token).
 # Usage:
 #   ansible-playbook -i inventory/hosts setup.yml \
 #     -e ssh_port=XXXXX \
@@ -58,7 +61,7 @@
         update_cache: true
         upgrade: full
         cache_valid_time: 0
-      when: ansible_os_family == "Debian"
+      when: ansible_facts['os_family'] == "Debian"
       tags:
         - packages
 
@@ -66,7 +69,7 @@
       ansible.builtin.dnf:
         name: "*"
         state: latest
-      when: ansible_os_family == "RedHat"
+      when: ansible_facts['os_family'] == "RedHat"
       tags:
         - packages
 
@@ -77,7 +80,7 @@
       ansible.builtin.apt:
         name: unattended-upgrades
         state: present
-      when: ansible_os_family == "Debian"
+      when: ansible_facts['os_family'] == "Debian"
       tags:
         - security
 
@@ -85,7 +88,7 @@
       ansible.builtin.command:
         cmd: dpkg-reconfigure -f noninteractive unattended-upgrades
       changed_when: false
-      when: ansible_os_family == "Debian"
+      when: ansible_facts['os_family'] == "Debian"
       tags:
         - security
 
@@ -98,7 +101,7 @@
           - apt-transport-https
           - gnupg
         state: present
-      when: ansible_os_family == "Debian"
+      when: ansible_facts['os_family'] == "Debian"
       tags:
         - java
 
@@ -107,17 +110,17 @@
         url: https://packages.adoptium.net/artifactory/api/gpg/key/public
         dest: /etc/apt/trusted.gpg.d/adoptium.asc
         mode: '0644'
-      when: ansible_os_family == "Debian"
+      when: ansible_facts['os_family'] == "Debian"
       tags:
         - java
 
     - name: Add Adoptium apt repository (Debian/Ubuntu)
       ansible.builtin.apt_repository:
-        repo: "deb https://packages.adoptium.net/artifactory/deb {{ ansible_distribution_release }} main"
+        repo: "deb https://packages.adoptium.net/artifactory/deb {{ ansible_facts['distribution_release'] }} main"
         state: present
         filename: adoptium
         update_cache: true
-      when: ansible_os_family == "Debian"
+      when: ansible_facts['os_family'] == "Debian"
       tags:
         - java
 
@@ -125,7 +128,7 @@
       ansible.builtin.apt:
         name: "temurin-{{ java_version }}-jdk"
         state: present
-      when: ansible_os_family == "Debian"
+      when: ansible_facts['os_family'] == "Debian"
       tags:
         - java
 
@@ -137,7 +140,7 @@
         gpgkey: https://packages.adoptium.net/artifactory/api/gpg/key/public
         gpgcheck: true
         enabled: true
-      when: ansible_os_family == "RedHat"
+      when: ansible_facts['os_family'] == "RedHat"
       tags:
         - java
 
@@ -145,7 +148,7 @@
       ansible.builtin.dnf:
         name: "temurin-{{ java_version }}-jdk"
         state: present
-      when: ansible_os_family == "RedHat"
+      when: ansible_facts['os_family'] == "RedHat"
       tags:
         - java
 
@@ -177,11 +180,12 @@
         - users
 
     - name: Authorize SSH public key for deploy user
-      ansible.builtin.authorized_key:
+      ansible.posix.authorized_key:
         user: deploy
         key: "{{ deploy_ssh_public_key }}"
         state: present
-        exclusive: true
+        exclusive: false
+      become: yes
       tags:
         - users
 
@@ -216,11 +220,12 @@
         - users
 
     - name: Authorize SSH public key for admin user
-      ansible.builtin.authorized_key:
+      ansible.posix.authorized_key:
         user: "{{ admin_user }}"
         key: "{{ admin_ssh_public_key }}"
         state: present
-        exclusive: true
+        exclusive: false
+      become: yes
       tags:
         - users
 
@@ -302,7 +307,7 @@
       ansible.builtin.lineinfile:
         path: /etc/ssh/sshd_config
         regexp: '^#?AllowUsers'
-        line: "AllowUsers deploy {{ admin_user }}"
+        line: "AllowUsers deploy {{ admin_user }} ubuntu"
         state: present
       notify: Restart sshd
       tags:
@@ -324,7 +329,7 @@
       ansible.builtin.apt:
         name: ufw
         state: present
-      when: ansible_os_family == "Debian"
+      when: ansible_facts['os_family'] == "Debian"
       tags:
         - firewall
 
@@ -346,14 +351,6 @@
       tags:
         - firewall
 
-    - name: Enable ufw with default deny inbound
-      community.general.ufw:
-        state: enabled
-        direction: incoming
-        policy: deny
-      tags:
-        - firewall
-
     # --- Port redirect 443 → 8443 via ufw before.rules ---
 
     - name: Insert NAT redirect rules into ufw before.rules
@@ -370,7 +367,29 @@
           {% endfor %}
           -A OUTPUT -p tcp -d 127.0.0.1 --dport 443 -j REDIRECT --to-port 8443
           COMMIT
-      when: nat_redirect | default(false)
+      when: nat_redirect == "true" | default(false)
+      notify: Reload ufw
+      tags:
+        - firewall
+        - nat
+
+    - name: Insert NAT redirect rules into ufw before6.rules (IPv6)
+      ansible.builtin.blockinfile:
+        path: /etc/ufw/before6.rules
+        insertbefore: BOF
+        marker: "# {mark} ANSIBLE MANAGED - coinservice NAT redirect"
+        block: |
+          *nat
+          :PREROUTING ACCEPT [0:0]
+          :OUTPUT ACCEPT [0:0]
+          {% for host in groups['coinservice_app_hosts'] %}
+          {% if hostvars[host]['ipv6_address'] is defined %}
+          -A PREROUTING -p tcp -d {{ hostvars[host]['ipv6_address'] }} --dport 443 -j REDIRECT --to-port 8443
+          {% endif %}
+          {% endfor %}
+          -A OUTPUT -p tcp -d ::1 --dport 443 -j REDIRECT --to-port 8443
+          COMMIT
+      when: nat_redirect == "true" | default(false)
       notify: Reload ufw
       tags:
         - firewall
@@ -386,13 +405,17 @@
         reload: true
         sysctl_file: /etc/sysctl.d/99-coinservice-hardening.conf
       loop:
-        - { key: net.ipv4.tcp_syncookies,                value: "1" }
-        - { key: net.ipv4.conf.all.accept_redirects,     value: "0" }
-        - { key: net.ipv4.conf.default.accept_redirects, value: "0" }
-        - { key: net.ipv4.conf.all.send_redirects,       value: "0" }
-        - { key: net.ipv4.conf.default.send_redirects,   value: "0" }
-        - { key: net.ipv4.conf.all.accept_source_route,  value: "0" }
-        - { key: kernel.randomize_va_space,              value: "2" }
+        - { key: net.ipv4.tcp_syncookies,                 value: "1" }
+        - { key: net.ipv4.conf.all.accept_redirects,      value: "0" }
+        - { key: net.ipv4.conf.default.accept_redirects,  value: "0" }
+        - { key: net.ipv4.conf.all.send_redirects,        value: "0" }
+        - { key: net.ipv4.conf.default.send_redirects,    value: "0" }
+        - { key: net.ipv4.conf.all.accept_source_route,   value: "0" }
+        - { key: net.ipv6.conf.all.accept_redirects,      value: "0" }
+        - { key: net.ipv6.conf.default.accept_redirects,  value: "0" }
+        - { key: net.ipv6.conf.all.accept_source_route,   value: "0" }
+        - { key: net.ipv6.conf.default.accept_source_route, value: "0" }
+        - { key: kernel.randomize_va_space,               value: "2" }
       tags:
         - sysctl
         - security
@@ -400,7 +423,7 @@
   handlers:
     - name: Restart sshd
       ansible.builtin.systemd:
-        name: "{{ 'ssh' if ansible_os_family == 'Debian' else 'sshd' }}"
+        name: "{{ 'ssh' if ansible_facts['os_family'] == 'Debian' else 'sshd' }}"
         state: restarted
 
     - name: Reload ufw
@@ -435,7 +458,7 @@
         name: nginx
         state: present
         update_cache: true
-      when: ansible_os_family == "Debian"
+      when: ansible_facts['os_family'] == "Debian"
       tags:
         - nginx
 
@@ -537,3 +560,100 @@
       ansible.builtin.systemd:
         name: nginx
         state: reloaded
+
+- name: Install and configure Grafana Alloy on coinservice_hosts
+  hosts: coinservice_hosts
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - vars/setup.yml
+
+  pre_tasks:
+    - name: Assert Grafana Cloud API key is provided
+      ansible.builtin.assert:
+        that:
+          - grafana_cloud_api_key is defined
+          - grafana_cloud_api_key | length > 0
+          - grafana_cloud_prometheus_url | length > 0
+          - grafana_cloud_prometheus_user | string | length > 0
+          - grafana_cloud_loki_url | length > 0
+          - grafana_cloud_loki_user | string | length > 0
+        fail_msg: "grafana_cloud_api_key is required at runtime; verify grafana_cloud_prometheus_url/user and grafana_cloud_loki_url/user are set in vars/setup.yml"
+      tags:
+        - always
+
+  tasks:
+    - name: Install and configure Grafana Alloy
+      ansible.builtin.include_role:
+        name: grafana.grafana.alloy
+        apply:
+          tags:
+            - alloy
+            - grafana
+      tags:
+        - alloy
+        - grafana
+      vars:
+        alloy_config: |
+          // --------------------------------
+          // Metrics: host system (CPU, memory, disk, network)
+          // --------------------------------
+
+          prometheus.exporter.unix "node" {}
+
+          prometheus.scrape "node" {
+            targets         = prometheus.exporter.unix.node.targets
+            forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+            scrape_interval = "60s"
+          }
+
+          prometheus.remote_write "grafana_cloud" {
+            endpoint {
+              url = "{{ grafana_cloud_prometheus_url }}"
+
+              basic_auth {
+                username = "{{ grafana_cloud_prometheus_user }}"
+                password = "{{ grafana_cloud_api_key }}"
+              }
+            }
+          }
+
+          // --------------------------------
+          // Metrics: coinservice JVM (heap, GC, threads, HTTP)
+          // --------------------------------
+
+          prometheus.scrape "coinservice_jvm" {
+            targets = [
+              {% for host in groups['coinservice_app_hosts'] %}
+              { __address__ = "{{ hostvars[host]['ansible_host'] }}:8081" },
+              {% endfor %}
+            ]
+            metrics_path    = "/actuator/prometheus"
+            forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+            scrape_interval = "30s"
+          }
+
+          // --------------------------------
+          // Logs: coinservice systemd journal
+          // --------------------------------
+
+          {% for env in ['development', 'production'] %}
+          loki.source.journal "coinservice_{{ env }}" {
+            matches    = "_SYSTEMD_UNIT=coinservice-{{ env }}.service"
+            max_age    = "12h"
+            labels     = { job = "coinservice", env = "{{ env }}" }
+            forward_to = [loki.write.grafana_cloud.receiver]
+          }
+          {% endfor %}
+
+          loki.write "grafana_cloud" {
+            endpoint {
+              url = "{{ grafana_cloud_loki_url }}"
+
+              basic_auth {
+                username = "{{ grafana_cloud_loki_user }}"
+                password = "{{ grafana_cloud_api_key }}"
+              }
+            }
+          }

@@ -2,3 +2,4 @@
 *.bat text eol=crlf
 *.sh eol=lf
 *.jar binary
+*.pem eol=lf

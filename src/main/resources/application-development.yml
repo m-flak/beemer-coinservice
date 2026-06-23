@@ -1,0 +1,13 @@
+spring:
+  ssl:
+    bundle:
+      pem:
+        coinservice:
+          keystore:
+            certificate: /etc/coinservice/development/ssl/fullchain.pem
+            private-key: /etc/coinservice/development/ssl/privkey.pem
+
+server:
+  port: 8443
+  ssl:
+    bundle: coinservice

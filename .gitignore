@@ -47,3 +47,7 @@ cd/setup-host/inventory/hosts
 cd/setup-host/files/*.pem
 cd/setup-host/files/*.crt
 cd/setup-host/files/*.key
+
+### Ansible
+.ansible
+.ansible-lint

@@ -1,5 +1,5 @@
 [Unit]
-Description=coinservice
+Description=coinservice ({{ coinservice_environment }})
 After=network.target
 
 [Service]
@@ -7,13 +7,13 @@ Type=simple
 User={{ coinservice_user }}
 Group={{ coinservice_group }}
 WorkingDirectory={{ coinservice_deploy_dir }}
-EnvironmentFile=/etc/coinservice/env
+EnvironmentFile=/etc/coinservice/{{ coinservice_environment }}/env
 ExecStart={{ coinservice_java_executable }} {{ coinservice_jvm_opts }} -jar {{ coinservice_deploy_dir }}/{{ coinservice_jar_name }}
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=coinservice
+SyslogIdentifier={{ coinservice_service_name }}
 NoNewPrivileges=true
 PrivateTmp=true
 LimitNOFILE=65536

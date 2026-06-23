@@ -22,7 +22,7 @@ coinservice_nginx_hosts
 
 [coinservice_hosts:vars]
 ansible_user=root
-ansible_port=22
+ansible_port=22187
 ansible_python_interpreter=/usr/bin/python3
 
 [coinservice_app_hosts:vars]

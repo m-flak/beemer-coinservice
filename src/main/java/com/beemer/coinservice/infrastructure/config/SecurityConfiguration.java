@@ -23,6 +23,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtIssuerAuthenticationManagerResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -69,8 +70,12 @@ public class SecurityConfiguration {
 		AuthenticationManager siweManager = new ProviderManager(new JwtAuthenticationProvider(siweJwtDecoder));
 		Map<String, AuthenticationManager> managers = Map.of(azureIssuer, azureManager, siweIssuer, siweManager);
 
+		RequestMatcher localhostPrometheus = request -> "/actuator/prometheus".equals(request.getRequestURI())
+				&& "127.0.0.1".equals(request.getRemoteAddr());
+
 		http.cors(cors -> cors.configurationSource(corsConfigurationSource(siweProperties)))
 				.authorizeHttpRequests(auth -> auth.requestMatchers("/actuator/health/**").permitAll()
+						.requestMatchers(localhostPrometheus).permitAll()
 						.requestMatchers("/auth/challenge").permitAll().requestMatchers("/actuator/**")
 						.hasAnyAuthority("actuator.read", "api.access").requestMatchers("/wallet/**")
 						.hasAnyAuthority("api.access", "SCOPE_wallet.access").anyRequest().hasAuthority("api.access"))

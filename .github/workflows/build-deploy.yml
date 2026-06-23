@@ -38,7 +38,7 @@ jobs:
 
       - name: Build JAR
         run: ./gradlew build
-      
+
       - name: Get JAR version
         id: jar-version
         run: |
@@ -78,6 +78,15 @@ jobs:
             echo "client_id=$CLIENT_ID"
             echo "client_secret=$CLIENT_SECRET"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Fetch SSL private key from Key Vault
+        env:
+          VAULT: ${{ secrets.AZURE_KEY_VAULT_NAME }}
+        run: |
+          SSL_PEM=$(az keyvault secret show --vault-name "$VAULT" \
+            --name "SSL-PRIVATE-KEY-${ENVIRONMENT^^}" --query value -o tsv)
+          echo "::add-mask::$SSL_PEM"
+          echo "$SSL_PEM" > "cd/deploy-app/files/coinservice-${ENVIRONMENT}-privkey.pem"
 
       - name: Install Ansible
         run: pip install --quiet ansible

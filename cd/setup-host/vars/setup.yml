@@ -6,8 +6,17 @@ system_timezone: America/Chicago
 # Java version to install via Adoptium Temurin
 java_version: 26
 
+# Grafana Cloud connection details (non-sensitive — from your stack's "Details" page)
+# Find these at: grafana.com → your stack → Details
+grafana_cloud_prometheus_url: "https://prometheus-prod-66-prod-us-east-3.grafana.net/api/prom/push"
+grafana_cloud_prometheus_user: "3325896"
+grafana_cloud_loki_url: "https://logs-prod-042.grafana.net/loki/api/v1/push"
+grafana_cloud_loki_user: "1658623"
+
 # ssh_port, deploy_ssh_public_key, admin_user, admin_ssh_public_key
 # must all be passed at runtime — no defaults to avoid accidental misconfiguration
+#
+# grafana_cloud_api_key must be passed at runtime (sensitive — Grafana Cloud API token)
 #
 # When targeting coinservice_nginx_host, also required at runtime:
 #   server_name, nginx_ssl_certificate, nginx_ssl_certificate_key

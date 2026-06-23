@@ -4,11 +4,19 @@ coinservice_user: coinservice
 coinservice_group: coinservice
 
 # Paths
-coinservice_deploy_dir: /opt/coinservice
-coinservice_log_dir: /var/log/coinservice
+coinservice_deploy_dir: /opt/coinservice/{{ coinservice_environment }}
+coinservice_log_dir: /var/log/coinservice/{{ coinservice_environment }}
 coinservice_jar_name: coinservice.jar
 # coinservice_jar_src must be passed at runtime:
 #   -e coinservice_jar_src=../../build/libs/coinservice.jar
+
+# SSL — cert files are copied from files/ by the deploy playbook
+coinservice_ssl_dir: /etc/coinservice/{{ coinservice_environment }}/ssl
+coinservice_ssl_certificate: "{{ coinservice_ssl_dir }}/fullchain.pem"
+coinservice_ssl_certificate_key: "{{ coinservice_ssl_dir }}/privkey.pem"
+
+# Systemd service name — one instance per environment on the same host
+coinservice_service_name: coinservice-{{ coinservice_environment }}
 
 # Java - update if Java 26 is installed to a non-default path
 coinservice_java_executable: /usr/bin/java
@@ -18,7 +26,7 @@ coinservice_jvm_opts: >-
   -XX:+UseG1GC
 
 # Application
-coinservice_port: 8080
+coinservice_port: 8443
 
 # Azure credentials - must be passed at runtime from Key Vault (via CI):
 #   -e coinservice_azure_client_id=$AZURE_CLIENT_ID

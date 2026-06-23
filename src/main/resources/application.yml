@@ -4,15 +4,22 @@ logging:
       console: logstash
 
 management:
+  server:
+    port: 8081
+    address: 127.0.0.1
+    ssl:
+      enabled: false
   endpoints:
     web:
       exposure:
-        include: health, info, metrics, loggers
+        include: health, info, metrics, loggers, prometheus
   endpoint:
     health:
       probes:
         enabled: true
       show-details: when-authorized
+    prometheus:
+      enabled: true
   info:
     env:
       enabled: true
