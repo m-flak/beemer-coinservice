@@ -41,14 +41,16 @@ public class CreateEpoch extends AbstractChainTask {
 	private final Map<Long, Web3j> web3jInstances;
 	private final ContractLoader contractLoader;
 	private final PinataClient pinata;
+	private final LastScannedBlockStore scanStore;
 
 	@Autowired
 	public CreateEpoch(BlockchainProperties blockchainProperties, Map<Long, Web3j> web3jInstances,
-			ContractLoader contractLoader, PinataClient pinata) {
+			ContractLoader contractLoader, PinataClient pinata, LastScannedBlockStore scanStore) {
 		super(blockchainProperties);
 		this.web3jInstances = web3jInstances;
 		this.contractLoader = contractLoader;
 		this.pinata = pinata;
+		this.scanStore = scanStore;
 	}
 
 	@Override
@@ -63,8 +65,10 @@ public class CreateEpoch extends AbstractChainTask {
 
 			stage = "Find Unique Lockers";
 			log.trace(stage);
-			var uniqueLockers = findUniqueLockers(beemer,
-					getChainData(forChain).getContracts().get(BEEMER).getCreatedBlock(), snapshotBlock);
+			BigInteger fromBlock = scanStore.get(forChain).map(b -> b.add(BigInteger.ONE))
+					.orElse(getChainData(forChain).getContracts().get(BEEMER).getCreatedBlock()).min(snapshotBlock);
+			var uniqueLockers = findUniqueLockers(beemer, fromBlock, snapshotBlock);
+			scanStore.update(forChain, snapshotBlock);
 
 			stage = "Determine Locked Balances";
 			log.trace(stage);
@@ -98,7 +102,6 @@ public class CreateEpoch extends AbstractChainTask {
 			}
 
 		} catch (Exception e) {
-			log.error("Ethereum transaction failure - at stage: {}", stage);
 			throw new ChainTaskFailureException("Epoch creation failed!", stage, e);
 		}
 	}

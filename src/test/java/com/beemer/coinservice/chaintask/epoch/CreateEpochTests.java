@@ -31,12 +31,12 @@ import org.web3j.protocol.core.DefaultBlockParameter;
 import org.web3j.protocol.core.RemoteFunctionCall;
 import org.web3j.protocol.core.methods.response.TransactionReceipt;
 
-import com.beemer.coinservice.infrastructure.ContractLoader;
-import com.beemer.coinservice.infrastructure.PinataClient;
-import com.beemer.coinservice.infrastructure.config.BlockchainProperties;
 import com.beemer.coinservice.contracts.Beemer;
 import com.beemer.coinservice.contracts.FeeVault;
 import com.beemer.coinservice.contracts.IERC20;
+import com.beemer.coinservice.infrastructure.ContractLoader;
+import com.beemer.coinservice.infrastructure.PinataClient;
+import com.beemer.coinservice.infrastructure.config.BlockchainProperties;
 import com.beemer.coinservice.utils.StandardMerkleTree;
 
 import io.reactivex.Flowable;
@@ -44,6 +44,7 @@ import io.reactivex.Flowable;
 @ExtendWith({SpringExtension.class, MockitoExtension.class})
 @EnableConfigurationProperties({BlockchainProperties.class})
 @ContextConfiguration(initializers = ConfigDataApplicationContextInitializer.class)
+@SuppressWarnings("unused")
 class CreateEpochTests {
 	@Autowired
 	BlockchainProperties blockchainProperties;
@@ -64,8 +65,8 @@ class CreateEpochTests {
 
 	@BeforeEach
 	void setUp() {
-		// Mockito.doReturn(web3j).when(web3jInstances).get(Mockito.anyLong());
-		createEpoch = new CreateEpoch(blockchainProperties, web3jInstances, contractLoader, pinata);
+		createEpoch = new CreateEpoch(blockchainProperties, web3jInstances, contractLoader, pinata,
+				new LastScannedBlockStore());
 	}
 
 	@Test

@@ -6,7 +6,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import com.beemer.coinservice.chaintask.epoch.CreateEpoch;
-import com.beemer.coinservice.chaintask.exception.ChainTaskFailureException;
 import com.beemer.coinservice.infrastructure.config.BlockchainProperties;
 import com.beemer.coinservice.infrastructure.config.EpochProperties;
 
@@ -14,28 +13,22 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Component
-public class CreateEpochCronJob {
+public class CreateEpochCronJob extends CronJob {
+	private final EpochProperties epochProperties;
+
+	private final ObjectProvider<CreateEpoch> createEpoch;
 
 	@Autowired
-	private BlockchainProperties blockchainProperties;
+	public CreateEpochCronJob(BlockchainProperties blockchainProperties, EpochProperties epochProperties,
+			ObjectProvider<CreateEpoch> createEpoch) {
+		super(blockchainProperties.getChains());
 
-	@Autowired
-	private EpochProperties epochProperties;
-
-	@Autowired
-	private ObjectProvider<CreateEpoch> createEpoch;
+		this.epochProperties = epochProperties;
+		this.createEpoch = createEpoch;
+	}
 
 	@Scheduled(cron = "${beemer.epoch.cron:-}")
 	public void run() {
-		for (var chain : blockchainProperties.getChains()) {
-			log.info("Preparing to create a new epoch on {} {}", chain.getName(), chain.getChainId());
-
-			try {
-				createEpoch.getObject().execute(chain.getChainId(), epochProperties);
-			} catch (ChainTaskFailureException ctfe) {
-				// TODO: do something for observability with getFailureStage
-			}
-
-		}
+		super.run(createEpoch, epochProperties);
 	}
 }

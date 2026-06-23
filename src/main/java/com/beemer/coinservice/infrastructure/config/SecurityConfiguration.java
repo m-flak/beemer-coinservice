@@ -40,8 +40,7 @@ public class SecurityConfiguration {
 		String clientId = azureProperties.getCredential().getClientId();
 		String issuer = resourceServerProperties.getJwt().getIssuerUri();
 		NimbusJwtDecoder decoder = JwtDecoders.fromIssuerLocation(issuer);
-		decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-				JwtValidators.createDefaultWithIssuer(issuer),
+		decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(JwtValidators.createDefaultWithIssuer(issuer),
 				token -> token.getAudience().contains("api://" + clientId)
 						? OAuth2TokenValidatorResult.success()
 						: OAuth2TokenValidatorResult
@@ -50,11 +49,9 @@ public class SecurityConfiguration {
 	}
 
 	@Bean
-	SecurityFilterChain securityFilterChain(HttpSecurity http,
-			@Qualifier("siweJwtDecoder") JwtDecoder siweJwtDecoder,
-			@Qualifier("azureJwtDecoder") JwtDecoder azureJwtDecoder,
-			SiweProperties siweProperties, OAuth2ResourceServerProperties resourceServerProperties)
-			throws Exception {
+	SecurityFilterChain securityFilterChain(HttpSecurity http, @Qualifier("siweJwtDecoder") JwtDecoder siweJwtDecoder,
+			@Qualifier("azureJwtDecoder") JwtDecoder azureJwtDecoder, SiweProperties siweProperties,
+			OAuth2ResourceServerProperties resourceServerProperties) throws Exception {
 
 		String azureIssuer = resourceServerProperties.getJwt().getIssuerUri();
 		String siweIssuer = siweProperties.getIssuer();
@@ -70,9 +67,7 @@ public class SecurityConfiguration {
 
 		AuthenticationManager azureManager = new ProviderManager(azureProvider);
 		AuthenticationManager siweManager = new ProviderManager(new JwtAuthenticationProvider(siweJwtDecoder));
-		Map<String, AuthenticationManager> managers = Map.of(
-				azureIssuer, azureManager,
-				siweIssuer, siweManager);
+		Map<String, AuthenticationManager> managers = Map.of(azureIssuer, azureManager, siweIssuer, siweManager);
 
 		http.cors(cors -> cors.configurationSource(corsConfigurationSource(siweProperties)))
 				.authorizeHttpRequests(auth -> auth.requestMatchers("/actuator/health/**").permitAll()
