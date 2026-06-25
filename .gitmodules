@@ -1,0 +1,3 @@
+[submodule "beemer-contracts"]
+	path = beemer-contracts
+	url = git@github.com:m-flak/beemer-contracts.git

@@ -58,7 +58,7 @@ dependencies {
 }
 
 w3jCodegen {
-	artifactsDir = file('../yeet/artifacts/contracts')
+	artifactsDir = file('beemer-contracts/artifacts/contracts')
 	packageName = 'com.beemer.coinservice.contracts'
 }
 

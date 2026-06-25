@@ -1,0 +1,22 @@
+import com.github.gradle.node.npm.task.NpxTask
+
+plugins {
+    id 'com.github.node-gradle.node'
+}
+
+def contractsDir = rootProject.file('beemer-contracts')
+
+node {
+    nodeProjectDir = contractsDir
+}
+
+tasks.register('compileContracts', NpxTask) {
+    dependsOn tasks.named('npmInstall')
+    command = 'hardhat'
+    args = ['build']
+    inputs.files(fileTree("$contractsDir/contracts").include('**/*.sol'))
+    inputs.file("$contractsDir/hardhat.config.ts")
+    inputs.file("$contractsDir/package.json")
+    outputs.dir("$contractsDir/artifacts")
+    outputs.cacheIf { true }
+}

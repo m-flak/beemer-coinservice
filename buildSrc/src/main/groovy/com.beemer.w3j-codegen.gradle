@@ -1,5 +1,9 @@
 import org.web3j.codegen.TruffleJsonFunctionWrapperGenerator
 
+plugins {
+    id 'com.beemer.contracts.compile'
+}
+
 extensions.create('w3jCodegen', W3jCodegenExtension)
 
 abstract class W3jCodegenExtension {
@@ -41,6 +45,10 @@ sourceSets {
             srcDir generatedDir
         }
     }
+}
+
+tasks.named('generateWeb3jWrappers').configure {
+    dependsOn 'compileContracts'
 }
 
 tasks.named('compileJava').configure {
