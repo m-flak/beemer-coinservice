@@ -93,7 +93,7 @@ jobs:
       - name: Setup Ansible
         uses: alex-oleshkevich/setup-ansible@v1.0.1
         with:
-          version: "2.21.1"
+          version: "14.0.0"
 
       - name: Run deploy playbook
         env:

@@ -71,14 +71,16 @@ runs:
           KEY_FILE=$(echo "$KEY_FILE" | sed 's/[[:space:]]//g')
           [ "${#KEY_FILE}" -eq 0 ] && continue
 
-          echo "Retrieving ${KEY} into ${FILE} ..."
-
           KEY=$(echo "$KEY_FILE" | awk -F',' '{ print $1; }')
           FILE=$(echo "$KEY_FILE" | awk -F',' '{ print $2; }')
 
-          SECRET=$(fetch "$KEY")
-          echo "::add-mask::$SECRET"
+          echo "Retrieving ${KEY} into ${FILE} ..."
+          
+          VALUE=$(fetch "$KEY")
+          while IFS= read -r _line; do
+            [ -n "$_line" ] && echo "::add-mask::$_line"
+          done <<< "$VALUE"
 
           mkdir -p "$(dirname "$FILE")"
-          echo "$SECRET" > "$FILE"
+          echo "$VALUE" > "$FILE"
         done
