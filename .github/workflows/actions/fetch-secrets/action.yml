@@ -36,9 +36,10 @@ runs:
 
         readarray -t SECRET_NAMES_ARRAY <<< "$VALUE_SECRETS"
         for NAME in "${SECRET_NAMES_ARRAY[@]}"; do
-          NAME="${NAME//$'\r'/}"
-          NAME="${NAME//$'\n'/}"
+          NAME=$(echo "$NAME" | sed 's/[[:space:]]//g')
+
           [ "${#NAME}" -eq 0 ] && continue
+
           VALUE=$(fetch "$NAME")
           while IFS= read -r _line; do
             [ -n "$_line" ] && echo "::add-mask::$_line"
