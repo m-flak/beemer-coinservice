@@ -15,13 +15,16 @@ def generatedDir = layout.buildDirectory.dir('generated/sources/web3j/main/java'
 
 tasks.register('generateWeb3jWrappers') {
     def outputDir = generatedDir.get().asFile
+    def artifactsDirProp = w3jCodegen.artifactsDir
+    def packageNameProp = w3jCodegen.packageName
 
-    inputs.dir w3jCodegen.artifactsDir
+    inputs.dir artifactsDirProp
     outputs.dir outputDir
+    outputs.cacheIf { true }
 
     doLast {
-        def artifactsDir = w3jCodegen.artifactsDir.get().asFile
-        def packageName = w3jCodegen.packageName.get()
+        def artifactsDir = artifactsDirProp.get().asFile
+        def packageName = packageNameProp.get()
         outputDir.mkdirs()
         artifactsDir.eachFileRecurse(groovy.io.FileType.FILES) { artifact ->
             if (artifact.name.endsWith('.json')
