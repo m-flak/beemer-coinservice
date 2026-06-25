@@ -187,6 +187,7 @@
   post_tasks:
     - name: Wait for coinservice port to be open
       ansible.builtin.wait_for:
+        host: "{{ ansible_host }}"
         port: "{{ coinservice_port }}"
         delay: 5
         timeout: 60
