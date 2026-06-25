@@ -16,7 +16,7 @@
 #     -e coinservice_azure_client_secret=$AZURE_CLIENT_SECRET
 
 - name: Deploy coinservice to Linux host
-  hosts: coinservice_hosts
+  hosts: all
   become: true
   gather_facts: true
 
