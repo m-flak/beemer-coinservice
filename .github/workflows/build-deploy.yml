@@ -109,7 +109,7 @@ jobs:
             -u deploy \
             -e ansible_port="$SSH_PORT" \
             -e coinservice_environment="$ENVIRONMENT" \
-            -e coinservice_jar_src="build/libs/coinservice-$JAR_VERSION.jar" \
+            -e coinservice_jar_src="$GITHUB_WORKSPACE/build/libs/coinservice-$JAR_VERSION.jar" \
             -e coinservice_azure_client_id="$CLIENT_ID" \
             -e coinservice_azure_client_secret="$CLIENT_SECRET" \
             cd/deploy-app/deploy.yml
