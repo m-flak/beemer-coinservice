@@ -37,10 +37,12 @@ runs:
           NAME="${NAME//$'\r'/}"
           NAME="${NAME//$'\n'/}"
           VALUE=$(fetch "$NAME")
-          echo "::add-mask::$VALUE"
+          while IFS= read -r _line; do
+            [ -n "$_line" ] && echo "::add-mask::$_line"
+          done <<< "$VALUE"
 
           CAMEL_NAME=$(kebabToCamel "${NAME,,}")
-          JSON=$(echo "$JSON" | jq --arg k "$CAMEL_NAME" --arg v "$VALUE" '. + {($k): $v}')
+          JSON=$(echo "$JSON" | jq -c --arg k "$CAMEL_NAME" --arg v "$VALUE" '. + {($k): $v}')
         done
 
         echo "::add-mask::$JSON"
