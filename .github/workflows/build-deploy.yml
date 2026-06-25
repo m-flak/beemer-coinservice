@@ -29,6 +29,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          ssh-key: ${{ secrets.BEEMER_CONTRACTS_KEY }}
           submodules: true
 
       - name: Set up Java 26
