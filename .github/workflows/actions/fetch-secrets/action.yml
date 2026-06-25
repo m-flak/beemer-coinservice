@@ -1,0 +1,67 @@
+name: Fetch Secrets from AKV
+
+description: Fetches value and file secrets from AKV
+
+inputs:
+  vault-name:
+    description: The name of the AKV to query
+    required: true
+  value-secrets:
+    description: Newline delimited list of secret names for value secrets
+    required: false
+  file-secrets:
+    description: Newline delimited list of "secret name, output file name" rows
+    required: false
+
+outputs:
+  fetched-secrets:
+    description: An object containing the key value pairs of fetched value secrets. Keys are camelCased variant of value-secrets[n].
+    value: ${{ steps.fetch-value-secrets.outputs.json }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Fetch Value Secrets
+      id: fetch-value-secrets
+      shell: bash
+      run: |
+        fetch() { az keyvault secret show --vault-name "${{ inputs.vault-name }}" --name "$1" --query value -o tsv; }
+
+        kebabToCamel() { echo "$1" | sed 's/-\([a-z]\)/\U\1/g'; }
+
+        JSON="{}"
+
+        SECRET_NAMES="${{ inputs.value-secrets }}"
+        readarray -t SECRET_NAMES_ARRAY <<< "$SECRET_NAMES"
+        for NAME in "${SECRET_NAMES_ARRAY[@]}"; do
+          VAR_NAME="${NAME//-/_}"
+          printf -v "$VAR_NAME" "%s" "$(fetch "$NAME")"
+          echo "::add-mask::${!VAR_NAME}"
+
+          CAMEL_NAME=$(kebabToCamel "${NAME,,}")
+          JSON=$(echo "$JSON" | jq --arg k "$CAMEL_NAME" --arg v "${!VAR_NAME}" '. + {($k): $v}')
+        done
+
+        echo "::add-mask::$JSON"
+
+        {
+          echo "json<<__EOF__"
+          echo "$JSON"
+          echo "__EOF__"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Fetch File Secrets
+      shell: bash
+      run: |
+        fetch() { az keyvault secret show --vault-name "${{ inputs.vault-name }}" --name "$1" --query value -o tsv; }
+
+        SECRET_NAMES="${{ inputs.file-secrets }}"
+        readarray -t SECRET_NAMES_ARRAY <<< "$SECRET_NAMES"
+        for KEY_FILE in "${SECRET_NAMES_ARRAY[@]}"; do
+          KEY=$(echo "$KEY_FILE" | awk -F',' '{ print $1; }')
+          FILE=$(echo "$KEY_FILE" | awk -F',' '{ print $2; }')
+          SECRET=$(fetch "$KEY")
+          echo "::add-mask::$SECRET"
+          mkdir -p "$(dirname "$FILE")"
+          echo "$SECRET" > "$FILE"
+        done

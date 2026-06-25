@@ -13,9 +13,8 @@ coinservice_jar_name: coinservice.jar
 # Java - update if Java 26 is installed to a non-default path
 coinservice_java_executable: /usr/bin/java
 coinservice_jvm_opts: >-
-  -Xms256m
-  -Xmx512m
-  -XX:+UseG1GC
+  -Xms2g
+  -Xmx2g
 
 # Application
 coinservice_port: 8080
