@@ -90,12 +90,23 @@
       tags:
         - setup
 
+    - name: Ensure base config directory exists
+      ansible.builtin.file:
+        path: /etc/coinservice
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      tags:
+        - setup
+        - config
+
     - name: Ensure environment config directory exists
       ansible.builtin.file:
         path: /etc/coinservice/{{ coinservice_environment }}
         state: directory
         owner: root
-        group: root
+        group: "{{ coinservice_group }}"
         mode: '0750'
       tags:
         - setup
