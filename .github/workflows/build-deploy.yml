@@ -26,10 +26,19 @@ jobs:
       ENVIRONMENT: ${{ (github.base_ref || github.ref_name) == 'main' && 'production' || 'development' }}
 
     steps:
+      - name: Generate Short-Lived Token from App
+        id: app-token
+        uses: actions/create-github-app-token@v1 # Use a trusted action
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          # The repositories the token needs access to
+          repositories: 'beemer-coinservice,beemer-contracts'
+
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ssh-key: ${{ secrets.BEEMER_CONTRACTS_KEY }}
+          token: ${{ steps.app-token.outputs.token }}
           submodules: true
 
       - name: Set up Java 26
