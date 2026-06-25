@@ -34,12 +34,13 @@ runs:
         SECRET_NAMES="${{ inputs.value-secrets }}"
         readarray -t SECRET_NAMES_ARRAY <<< "$SECRET_NAMES"
         for NAME in "${SECRET_NAMES_ARRAY[@]}"; do
-          VAR_NAME="${NAME//-/_}"
-          printf -v "$VAR_NAME" "%s" "$(fetch "$NAME")"
-          echo "::add-mask::${!VAR_NAME}"
+          NAME="${NAME//$'\r'/}"
+          NAME="${NAME//$'\n'/}"
+          VALUE=$(fetch "$NAME")
+          echo "::add-mask::$VALUE"
 
           CAMEL_NAME=$(kebabToCamel "${NAME,,}")
-          JSON=$(echo "$JSON" | jq --arg k "$CAMEL_NAME" --arg v "${!VAR_NAME}" '. + {($k): $v}')
+          JSON=$(echo "$JSON" | jq --arg k "$CAMEL_NAME" --arg v "$VALUE" '. + {($k): $v}')
         done
 
         echo "::add-mask::$JSON"
