@@ -14,9 +14,8 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
+  build-deploy:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
 
     # GHA Environment gates production deploys behind required reviewers if configured.
     # Create "production" and "development" environments in repo Settings → Environments.
@@ -35,6 +34,9 @@ jobs:
         with:
           distribution: temurin
           java-version: '26'
+      
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Build JAR
         run: ./gradlew build
@@ -54,60 +56,39 @@ jobs:
 
       - name: Fetch secrets from Key Vault
         id: kv
-        env:
-          VAULT: ${{ secrets.AZURE_KEY_VAULT_NAME }}
-        run: |
-          fetch() { az keyvault secret show --vault-name "$VAULT" --name "$1" --query value -o tsv; }
-
-          SSH_KEY=$(fetch "DEPLOY-SSH-KEY")
-          SSH_PORT=$(fetch "SSH-PORT")
-          CLIENT_ID=$(fetch "AZURE-CLIENT-ID")
-          CLIENT_SECRET=$(fetch "AZURE-CLIENT-SECRET")
-
-          # Mask secrets before they can appear in any log line
-          echo "::add-mask::$SSH_KEY"
-          echo "::add-mask::$CLIENT_ID"
-          echo "::add-mask::$CLIENT_SECRET"
-
-          # Multiline ssh_key uses heredoc syntax; all writes grouped into one redirect
-          {
-            echo "ssh_port=$SSH_PORT"
-            echo "ssh_key<<__EOF__"
-            echo "$SSH_KEY"
-            echo "__EOF__"
-            echo "client_id=$CLIENT_ID"
-            echo "client_secret=$CLIENT_SECRET"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Fetch SSL private key from Key Vault
-        env:
-          VAULT: ${{ secrets.AZURE_KEY_VAULT_NAME }}
-        run: |
-          SSL_PEM=$(az keyvault secret show --vault-name "$VAULT" \
-            --name "SSL-PRIVATE-KEY-${ENVIRONMENT^^}" --query value -o tsv)
-          echo "::add-mask::$SSL_PEM"
-          echo "$SSL_PEM" > "cd/deploy-app/files/coinservice-${ENVIRONMENT}-privkey.pem"
-
-      - name: Install Ansible
-        run: pip install --quiet ansible
+        uses: ./.github/workflows/actions/fetch-secrets
+        with:
+          vault-name: ${{ secrets.AZURE_KEY_VAULT_NAME }}
+          value-secrets: |
+            DEPLOY-SSH-KEY
+            SSH-PORT
+            AZURE-CLIENT-ID
+            AZURE-CLIENT-SECRET
+          file-secrets: |
+            SSL-PRIVATE-KEY-${{ env.ENVIRONMENT == 'production' && 'PRODUCTION' || 'DEVELOPMENT' }},cd/deploy-app/files/coinservice-${{ env.ENVIRONMENT }}-privkey.pem
 
       - name: Configure SSH
         env:
-          SSH_KEY: ${{ steps.kv.outputs.ssh_key }}
+          SSH_KEY: ${{ fromJSON(steps.kv.outputs.fetched-secrets).deploySshKey }}
           HOST: ${{ github.ref_name == 'main' && vars.PRODUCTION_HOST || vars.DEVELOPMENT_HOST }}
-          SSH_PORT: ${{ steps.kv.outputs.ssh_port }}
+          SSH_PORT: ${{ fromJSON(steps.kv.outputs.fetched-secrets).sshPort }}
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H -p "$SSH_PORT" "$HOST" >> ~/.ssh/known_hosts
 
+      - name: Setup Ansible
+        uses: alex-oleshkevich/setup-ansible@v1.0.1
+        with:
+          version: "2.21.1"
+
       - name: Run deploy playbook
         env:
           HOST: ${{ github.ref_name == 'main' && vars.PRODUCTION_HOST || vars.DEVELOPMENT_HOST }}
-          SSH_PORT: ${{ steps.kv.outputs.ssh_port }}
-          CLIENT_ID: ${{ steps.kv.outputs.client_id }}
-          CLIENT_SECRET: ${{ steps.kv.outputs.client_secret }}
+          SSH_PORT: ${{ fromJSON(steps.kv.outputs.fetched-secrets).sshPort }}
+          CLIENT_ID: ${{ fromJSON(steps.kv.outputs.fetched-secrets).azureClientId }}
+          CLIENT_SECRET: ${{ fromJSON(steps.kv.outputs.fetched-secrets).azureClientSecret }}
           JAR_VERSION: ${{ steps.jar-version.outputs.version }}
         run: |
           ansible-playbook \

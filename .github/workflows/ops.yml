@@ -1,0 +1,68 @@
+name: Ops - Application Control
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - development
+          - production
+      operation:
+        description: Operation to perform
+        required: true
+        type: choice
+        options:
+          - restart
+          - start
+          - stop
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  ops:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Fetch secrets from Key Vault
+        id: kv
+        uses: ./.github/workflows/actions/fetch-secrets
+        with:
+          vault-name: ${{ secrets.AZURE_KEY_VAULT_NAME }}
+          value-secrets: |
+            DEPLOY-SSH-KEY
+            SSH-PORT
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ fromJSON(steps.kv.outputs.fetched-secrets).deploySshKey }}
+          HOST: ${{ inputs.environment == 'production' && vars.PRODUCTION_HOST || vars.DEVELOPMENT_HOST }}
+          SSH_PORT: ${{ fromJSON(steps.kv.outputs.fetched-secrets).sshPort }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H -p "$SSH_PORT" "$HOST" >> ~/.ssh/known_hosts
+
+      - name: ${{ inputs.operation }} coinservice
+        env:
+          HOST: ${{ inputs.environment == 'production' && vars.PRODUCTION_HOST || vars.DEVELOPMENT_HOST }}
+          SSH_PORT: ${{ fromJSON(steps.kv.outputs.fetched-secrets).sshPort }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" -o StrictHostKeyChecking=yes \
+            deploy@"$HOST" sudo systemctl ${{ inputs.operation }} coinservice
