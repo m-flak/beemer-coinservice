@@ -24,18 +24,21 @@ runs:
     - name: Fetch Value Secrets
       id: fetch-value-secrets
       shell: bash
+      env:
+        VAULT_NAME: ${{ inputs.vault-name }}
+        VALUE_SECRETS: ${{ inputs.value-secrets }}
       run: |
-        fetch() { az keyvault secret show --vault-name "${{ inputs.vault-name }}" --name "$1" --query value -o tsv; }
+        fetch() { az keyvault secret show --vault-name "$VAULT_NAME" --name "$1" --query value -o tsv; }
 
         kebabToCamel() { echo "$1" | sed 's/-\([a-z]\)/\U\1/g'; }
 
         JSON="{}"
 
-        SECRET_NAMES="${{ inputs.value-secrets }}"
-        readarray -t SECRET_NAMES_ARRAY <<< "$SECRET_NAMES"
+        readarray -t SECRET_NAMES_ARRAY <<< "$VALUE_SECRETS"
         for NAME in "${SECRET_NAMES_ARRAY[@]}"; do
           NAME="${NAME//$'\r'/}"
           NAME="${NAME//$'\n'/}"
+          [ "${#NAME}" -eq 0 ] && continue
           VALUE=$(fetch "$NAME")
           while IFS= read -r _line; do
             [ -n "$_line" ] && echo "::add-mask::$_line"
