@@ -75,11 +75,11 @@ public class SecurityConfiguration {
 
 		http.cors(cors -> cors.configurationSource(corsConfigurationSource(siweProperties)))
 				.authorizeHttpRequests(auth -> auth.requestMatchers("/actuator/health/**").permitAll()
-						.requestMatchers(localhostPrometheus).permitAll()
-						.requestMatchers("/auth/challenge").permitAll().requestMatchers("/actuator/**")
-						.hasAnyAuthority("actuator.read", "api.access").requestMatchers("/wallet/**")
-						.hasAnyAuthority("api.access", "SCOPE_wallet.access").requestMatchers("/v1/trigger/**")
-						.hasAuthority("api.access").anyRequest().hasAuthority("api.access"))
+						.requestMatchers(localhostPrometheus).permitAll().requestMatchers("/auth/challenge").permitAll()
+						.requestMatchers("/actuator/**").hasAnyAuthority("actuator.read", "api.access")
+						.requestMatchers("/wallet/**").hasAnyAuthority("api.access", "SCOPE_wallet.access")
+						.requestMatchers("/v1/trigger/**").hasAuthority("api.access").anyRequest()
+						.hasAuthority("api.access"))
 				.oauth2ResourceServer(oauth2 -> oauth2
 						.authenticationManagerResolver(new JwtIssuerAuthenticationManagerResolver(managers::get)));
 

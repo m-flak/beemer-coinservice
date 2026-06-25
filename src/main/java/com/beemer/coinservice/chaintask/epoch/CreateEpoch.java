@@ -61,7 +61,8 @@ public class CreateEpoch extends AbstractChainTask {
 		log.trace(stage);
 		try {
 			var web3 = web3jInstances.get(forChain);
-			var beemer = contractLoader.loadBeemer(getChainData(forChain).getContracts().get(BEEMER).getAddress(), web3);
+			var beemer = contractLoader.loadBeemer(getChainData(forChain).getContracts().get(BEEMER).getAddress(),
+					web3);
 
 			stage = "Get Block Number";
 			log.trace(stage);
@@ -122,8 +123,7 @@ public class CreateEpoch extends AbstractChainTask {
 			filter.addSingleTopic(EventEncoder.encode(Beemer.LOCKED_EVENT));
 			web3.ethGetLogs(filter).send().getLogs().stream()
 					.map(logs -> ((EthLog.LogObject) logs.get()).getTopics().get(1))
-					.map(topic -> "0x" + topic.substring(26))
-					.forEach(lockers::add);
+					.map(topic -> "0x" + topic.substring(26)).forEach(lockers::add);
 		}
 
 		return lockers;

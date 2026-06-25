@@ -16,7 +16,8 @@ import lombok.extern.slf4j.Slf4j;
 public class CronJob {
 	private final List<Chain> blockChains;
 
-	public void run() {}
+	public void run() {
+	}
 
 	protected <T extends ChainTask> void run(ObjectProvider<T> taskProvider, Object taskParameters) {
 		for (var chain : blockChains) {
