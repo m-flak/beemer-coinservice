@@ -37,8 +37,9 @@ runs:
         readarray -t SECRET_NAMES_ARRAY <<< "$VALUE_SECRETS"
         for NAME in "${SECRET_NAMES_ARRAY[@]}"; do
           NAME=$(echo "$NAME" | sed 's/[[:space:]]//g')
-
           [ "${#NAME}" -eq 0 ] && continue
+
+          echo "Retrieving ${NAME} ..."
 
           VALUE=$(fetch "$NAME")
           while IFS= read -r _line; do
@@ -59,16 +60,25 @@ runs:
 
     - name: Fetch File Secrets
       shell: bash
+      env:
+        VAULT_NAME: ${{ inputs.vault-name }}
+        FILE_SECRETS: ${{ inputs.file-secrets }}
       run: |
-        fetch() { az keyvault secret show --vault-name "${{ inputs.vault-name }}" --name "$1" --query value -o tsv; }
+        fetch() { az keyvault secret show --vault-name "$VAULT_NAME" --name "$1" --query value -o tsv; }
 
-        SECRET_NAMES="${{ inputs.file-secrets }}"
-        readarray -t SECRET_NAMES_ARRAY <<< "$SECRET_NAMES"
+        readarray -t SECRET_NAMES_ARRAY <<< "$FILE_SECRETS"
         for KEY_FILE in "${SECRET_NAMES_ARRAY[@]}"; do
+          KEY_FILE=$(echo "$KEY_FILE" | sed 's/[[:space:]]//g')
+          [ "${#KEY_FILE}" -eq 0 ] && continue
+
+          echo "Retrieving ${KEY} into ${FILE} ..."
+
           KEY=$(echo "$KEY_FILE" | awk -F',' '{ print $1; }')
           FILE=$(echo "$KEY_FILE" | awk -F',' '{ print $2; }')
+
           SECRET=$(fetch "$KEY")
           echo "::add-mask::$SECRET"
+
           mkdir -p "$(dirname "$FILE")"
           echo "$SECRET" > "$FILE"
         done
