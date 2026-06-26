@@ -30,3 +30,5 @@ coinservice_port: 8443
 # Azure credentials - must be passed at runtime from Key Vault (via CI):
 #   -e coinservice_azure_client_id=$AZURE_CLIENT_ID
 #   -e coinservice_azure_client_secret=$AZURE_CLIENT_SECRET
+#   -e coinservice_azure_tenant_id=$AZURE_TENANT_ID
+coinservice_azure_tenant_id: b576cc51-2a06-4b5b-a53b-b64f0780d721
