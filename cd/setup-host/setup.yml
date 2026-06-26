@@ -351,6 +351,23 @@
       tags:
         - firewall
 
+    - name: Allow outbound HTTPS for Azure services
+      community.general.ufw:
+        rule: allow
+        direction: out
+        port: "443"
+        proto: tcp
+        comment: "Outbound HTTPS (Azure App Configuration, Key Vault)"
+      tags:
+        - firewall
+        - azure
+
+    - name: Enable ufw
+      community.general.ufw:
+        state: enabled
+      tags:
+        - firewall
+
     # --- Port redirect 443 → 8443 via ufw before.rules ---
 
     - name: Insert NAT redirect rules into ufw before.rules
