@@ -185,6 +185,13 @@
         - deploy
         - systemd
 
+    - name: Reset failed state if present
+      ansible.builtin.command: systemctl reset-failed {{ coinservice_service_name }}
+      changed_when: false
+      tags:
+        - deploy
+        - systemd
+
     - name: Enable and start coinservice service
       ansible.builtin.systemd:
         name: "{{ coinservice_service_name }}"

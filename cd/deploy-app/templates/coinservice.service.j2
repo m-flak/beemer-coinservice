@@ -1,6 +1,8 @@
 [Unit]
 Description=coinservice ({{ coinservice_environment }})
 After=network.target
+StartLimitIntervalSec=120
+StartLimitBurst=3
 
 [Service]
 Type=simple
