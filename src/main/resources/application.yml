@@ -2,6 +2,10 @@ logging:
   structured:
     format:
       console: logstash
+  level:
+    com.azure.spring.cloud.appconfiguration: WARN
+    com.azure.spring.cloud.core: WARN
+    com.azure.identity: WARN
 
 management:
   server:

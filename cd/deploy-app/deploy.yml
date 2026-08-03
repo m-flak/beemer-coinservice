@@ -215,7 +215,7 @@
 
     - name: Verify coinservice health endpoint
       ansible.builtin.uri:
-        url: "https://{{ ansible_host }}:{{ coinservice_port }}/actuator/health"
+        url: "https://{{ ansible_host }}/actuator/health"
         method: GET
         status_code: 200
         validate_certs: false

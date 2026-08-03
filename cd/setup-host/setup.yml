@@ -387,50 +387,6 @@
       tags:
         - firewall
 
-    # --- Port redirect 443 → 8443 via ufw before.rules ---
-
-    - name: Insert NAT redirect rules into ufw before.rules
-      ansible.builtin.blockinfile:
-        path: /etc/ufw/before.rules
-        insertbefore: BOF
-        marker: "# {mark} ANSIBLE MANAGED - coinservice NAT redirect"
-        block: |
-          *nat
-          :PREROUTING ACCEPT [0:0]
-          :OUTPUT ACCEPT [0:0]
-          {% for host in groups['coinservice_app_hosts'] %}
-          -A PREROUTING -p tcp -d {{ hostvars[host]['ansible_host'] }} --dport 443 -j REDIRECT --to-port 8443
-          {% endfor %}
-          -A OUTPUT -p tcp -d 127.0.0.1 --dport 443 -j REDIRECT --to-port 8443
-          COMMIT
-      when: nat_redirect == "true" | default(false)
-      notify: Reload ufw
-      tags:
-        - firewall
-        - nat
-
-    - name: Insert NAT redirect rules into ufw before6.rules (IPv6)
-      ansible.builtin.blockinfile:
-        path: /etc/ufw/before6.rules
-        insertbefore: BOF
-        marker: "# {mark} ANSIBLE MANAGED - coinservice NAT redirect"
-        block: |
-          *nat
-          :PREROUTING ACCEPT [0:0]
-          :OUTPUT ACCEPT [0:0]
-          {% for host in groups['coinservice_app_hosts'] %}
-          {% if hostvars[host]['ipv6_address'] is defined %}
-          -A PREROUTING -p tcp -d {{ hostvars[host]['ipv6_address'] }} --dport 443 -j REDIRECT --to-port 8443
-          {% endif %}
-          {% endfor %}
-          -A OUTPUT -p tcp -d ::1 --dport 443 -j REDIRECT --to-port 8443
-          COMMIT
-      when: nat_redirect == "true" | default(false)
-      notify: Reload ufw
-      tags:
-        - firewall
-        - nat
-
     # --- Kernel hardening ---
 
     - name: Apply network hardening sysctl parameters
@@ -661,9 +617,8 @@
 
           prometheus.scrape "coinservice_jvm" {
             targets = [
-              {% for host in groups['coinservice_app_hosts'] %}
-              { __address__ = "{{ hostvars[host]['ansible_host'] }}:8081" },
-              {% endfor %}
+              { __address__ = "127.0.0.1:8081", env = "development" },
+              { __address__ = "127.0.0.1:8082", env = "production" },
             ]
             metrics_path    = "/actuator/prometheus"
             forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
