@@ -214,13 +214,11 @@
         - verify
 
     - name: Verify coinservice health endpoint
-      ansible.builtin.uri:
-        url: "https://{{ ansible_host }}/actuator/health"
-        method: GET
-        status_code: 200
-        validate_certs: false
+      ansible.builtin.command:
+        cmd: curl -sf http://127.0.0.1:{{ coinservice_management_port }}/actuator/health
+      changed_when: false
       register: health_check
-      until: health_check.status == 200
+      until: health_check.rc == 0
       retries: 6
       delay: 5
       tags:

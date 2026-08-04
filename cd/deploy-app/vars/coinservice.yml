@@ -26,6 +26,7 @@ coinservice_jvm_opts: >-
 
 # Application
 coinservice_port: 443
+coinservice_management_port: "{{ '8082' if coinservice_environment == 'production' else '8081' }}"
 
 # Azure credentials - must be passed at runtime from Key Vault (via CI):
 #   -e coinservice_azure_client_id=$AZURE_CLIENT_ID
