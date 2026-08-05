@@ -63,6 +63,7 @@ jobs:
         env:
           HOST: ${{ inputs.environment == 'production' && vars.PRODUCTION_HOST || vars.DEVELOPMENT_HOST }}
           SSH_PORT: ${{ fromJSON(steps.kv.outputs.fetched-secrets).sshPort }}
+          SVC_NAME: coinservice-${{ inputs.environment }}
         run: |
           ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" -o StrictHostKeyChecking=yes \
-            deploy@"$HOST" sudo systemctl ${{ inputs.operation }} coinservice
+            deploy@"$HOST" sudo systemctl ${{ inputs.operation }} "$SVC_NAME"
